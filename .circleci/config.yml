@@ -1,8 +1,11 @@
 version: 2.1
 orbs:
-  node: circleci/node@2.0.2
+  node: circleci/node@1.1.6
 jobs:
   build-and-test:
+    docker:
+      - image: circleci/node:10.16
+      - image: trufflesuite/ganache-cli
     executor:
       name: node/default
     steps:
