@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "truffle test",
+    "ganache-cli": "ganache-cli",
     "prettier": "prettier --write --plugin=prettier-plugin-solidity **/*.sol",
     "lint": "solhint \"contracts/**/*.sol\" && solium -d ./contracts/",
     "lintFix": "solium -d ./contracts/ --fix"
