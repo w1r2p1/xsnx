@@ -1,18 +1,14 @@
 pragma solidity 0.5.15;
 
-import "./TradeAccounting.sol";
-import "./helpers/Pausable.sol";
-
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
-
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
-import "./interface/Synthetix/IAddressResolver.sol";
-import "./interface/Synthetix/IFeePool.sol";
-import "./interface/Synthetix/IRewardEscrow.sol";
-import "./interface/Synthetix/ISynthetix.sol";
+import "synthetix/contracts/interfaces/IFeePool.sol";
+
+import "./TradeAccounting.sol";
+import "./helpers/Pausable.sol";
 
 import "./interface/IRebalancingSetIssuanceModule.sol";
 import "./interface/IKyberNetworkProxy.sol";

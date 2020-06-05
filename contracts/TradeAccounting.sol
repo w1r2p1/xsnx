@@ -1,22 +1,21 @@
 pragma solidity 0.5.15;
 
-import "./Whitelist.sol";
-
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
+import "synthetix/contracts/interfaces/ISynthetix.sol";
+import "synthetix/contracts/interfaces/IRewardEscrow.sol";
+import "synthetix/contracts/interfaces/IExchangeRates.sol";
+import "synthetix/contracts/interfaces/ISynthetixState.sol";
+import "synthetix/contracts/interfaces/IAddressResolver.sol";
+
+import "./Whitelist.sol";
 import "./interface/IxSNXCore.sol";
 
-import "./interface/Synthetix/IRewardEscrow.sol";
-import "./interface/Synthetix/IExchangeRates.sol";
-import "./interface/Synthetix/IAddressResolver.sol";
-import "./interface/Synthetix/ISynthetix.sol";
-import "./interface/Synthetix/ISynthetixState.sol";
-
+import "./interface/ISetToken.sol";
 import "./interface/IKyberNetworkProxy.sol";
 import "./interface/ISetAssetBaseCollateral.sol";
-import "./interface/ISetToken.sol";
 
 
 /* 
