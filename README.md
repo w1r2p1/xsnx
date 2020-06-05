@@ -1,6 +1,9 @@
 <img src="./xsnx.png">
 
+
 # xSNX: Synthetix Staking Wrapper Token
+[![CircleCI](https://circleci.com/gh/xtokenmarket/xsnx.svg?style=svg)](https://circleci.com/gh/xtokenmarket/xsnx)
+
 Investors buy the xSNX token and are able to participate in Synthetix staking rewards without actively managing a position. Set and forget while earning fees and rewards.
 
 ## To Deploy to Kovan
