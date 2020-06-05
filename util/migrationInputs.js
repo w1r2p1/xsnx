@@ -23,7 +23,10 @@ const migrationInputs = {
     mainnet: '',
   },
   ADDRESS_RESOLVER: {
-    kovan: synthetix.getTarget({ network: 'kovan', contract: 'AddressResolver' }).address,
+    kovan: synthetix.getTarget({
+      network: 'kovan',
+      contract: 'AddressResolver',
+    }).address,
     mainnet: '',
   },
   REBALANCING_MODULE: {
@@ -36,7 +39,8 @@ const migrationInputs = {
     mainnet: '',
   },
   SNX_ADDRESS: {
-    kovan: synthetix.getTarget({ network: 'kovan', contract: 'ProxyERC20' }).address,
+    kovan: synthetix.getTarget({ network: 'kovan', contract: 'ProxyERC20' })
+      .address,
     mainnet: '',
   },
   SET_TRANSFER_PROXY: {
