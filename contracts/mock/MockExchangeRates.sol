@@ -2,8 +2,8 @@ pragma solidity 0.5.15;
 
 contract MockExchangeRates {
     bytes32 snx = "SNX";
-	bytes32 susd = "sUSD";
-	bytes32 seth = "sETH";
+    bytes32 susd = "sUSD";
+    bytes32 seth = "sETH";
 
     bool underCollat = false;
 
