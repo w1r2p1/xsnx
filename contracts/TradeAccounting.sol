@@ -628,6 +628,7 @@ contract TradeAccounting is Whitelist {
             issuanceRatio
         );
 
+
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(
             susdToBurnToFixRatio,

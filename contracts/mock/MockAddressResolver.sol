@@ -8,10 +8,10 @@ contract MockAddressResolver {
     address public synthetixAddress;
 
     bytes32 constant exchangeRatesName = "ExchangeRates";
-	bytes32 constant feePoolName = "FeePool";
-	bytes32 constant rewardEscrowName = "RewardEscrow";
-	bytes32 constant synthetixStateName = "SynthetixState";
-	bytes32 constant synthetixName = "Synthetix";
+    bytes32 constant feePoolName = "FeePool";
+    bytes32 constant rewardEscrowName = "RewardEscrow";
+    bytes32 constant synthetixStateName = "SynthetixState";
+    bytes32 constant synthetixName = "Synthetix";
 
     constructor(address _exchangeRatesAddress, address _feePoolAddress, address _rewardEscrowAddress, address _synthetixStateAddress, address _synthetixAddress) public {
         exchangeRatesAddress = _exchangeRatesAddress;
