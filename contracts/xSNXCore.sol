@@ -25,6 +25,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     bytes32 constant synthetixName = "Synthetix";
     bytes32 constant rewardEscrowName = "RewardEscrow";
 
+    uint256 private constant PERCENT = 100;
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant BREATHING_PERIOD = 4 hours;
 
@@ -181,7 +182,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
 
         feePool.claimFees();
         withdrawableSusdFees = withdrawableSusdFees.add(
-            getSusdBalance().div(feeDivisor)
+            getSusdBalance().div(PERCENT)
         );
         _swapTokenToEther(susdAddress, getSusdBalance(), minRates[1]);
     }
