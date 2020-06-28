@@ -15,3 +15,8 @@ Investors buy the xSNX token and are able to participate in Synthetix staking re
 ## To Test
 - Run `ganache-cli` in one terminal window
 - Run `truffle test`
+
+## Versions
+- Truffle v5.0.7
+- Solidity - 0.5.15
+- Node v13.3.0

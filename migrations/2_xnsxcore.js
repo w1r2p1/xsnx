@@ -1,6 +1,7 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const migrationInputs = require('../util/migrationInputs')
-const xSNXCore = artifacts.require('ExtXC')
+const ExtXCore = artifacts.require('ExtXC')
+const xSNXCore = artifacts.require('xSNXCore')
 const TradeAccounting = artifacts.require('TradeAccounting')
 // mock version
 const ExtTradeAccounting = artifacts.require('ExtTA')
@@ -108,7 +109,7 @@ module.exports = async function (deployer, network, accounts) {
                                                     async (tradeAccounting) => {
                                                       return deployer
                                                         .deploy(
-                                                          xSNXCore,
+                                                          ExtXCore,
                                                           tradeAccounting.address,
                                                           setToken.address,
                                                         )
@@ -169,23 +170,7 @@ module.exports = async function (deployer, network, accounts) {
                                                           await feePool.setSusdAddress(
                                                             susd.address,
                                                           )
-                                                          // no direct interaction with transfer proxy.
-                                                          // mockable?
-                                                          // await xsnx.approveSetTransferProxy(
-                                                          //   SET_ASSET_1,
-                                                          //   SET_TRANSFER_PROXY,
-                                                          // )
-                                                          // console.log(
-                                                          //   'xsnx: set asset 1 => transfer proxy approve',
-                                                          // )
-                                                          // await xsnx.approveSetTransferProxy(
-                                                          //   SET_ASSET_2,
-                                                          //   SET_TRANSFER_PROXY,
-                                                          // )
-                                                          // console.log(
-                                                          //   'xsnx: set asset 2 => transfer proxy approve',
-                                                          // )
-
+    
                                                           await xsnx.setFee(
                                                             '286',
                                                           )
