@@ -29,14 +29,11 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant BREATHING_PERIOD = 4 hours;
 
-    uint256 private lastStakedTimestamp;
-    uint256 private lastSetToEthRebalance;
-
     TradeAccounting private tradeAccounting;
     IAddressResolver private addressResolver;
     IRebalancingSetIssuanceModule private rebalancingModule;
 
-    uint256 private feeDivisor;
+    uint256 public feeDivisor;
     uint256 public withdrawableEthFees;
     uint256 public withdrawableSusdFees;
 
@@ -70,7 +67,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price
      * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
      */
-    function _mint(uint256 minRate) external payable whenNotPaused {
+    function mint(uint256 minRate) external payable whenNotPaused {
         require(msg.value > 0, "Must send ETH");
         uint256 fee = _administerFee(msg.value);
         uint256 ethUsedForSnx = msg.value.sub(fee);
@@ -96,7 +93,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @dev Checks if ETH reserve is sufficient to settle redeem obligation
      * @dev Will only redeem if ETH reserve is sufficient
      */
-    function _burn(uint256 tokensToRedeem) external whenNotPaused {
+    function burn(uint256 tokensToRedeem) external whenNotPaused {
         require(tokensToRedeem > 0, "Must burn tokens");
         require(
             balanceOf(msg.sender) >= tokensToRedeem,
@@ -127,28 +124,27 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @notice Caller is rewarded with 1% of issued synths
      * @dev Issues max synths on Synthetix
      * @dev Exchanges sUSD for Set and ETH in terms defined by tradeAccounting.ETH_TARGET
+     * @param minRates kyber.getExpectedRate([susd=>eth, susd>currentSetAsset])
      */
-    function hedge() public whenNotPaused {
-        require(
-            block.timestamp.sub(lastStakedTimestamp) > BREATHING_PERIOD,
-            "Not time to stake yet"
-        );
+    function hedge(uint256[] calldata minRates)
+        external
+        onlyOwner
+        whenNotPaused
+    {
         _stake();
 
         uint256 susdBal = getSusdBalance();
         if (susdBal > 0) {
-            (uint256 tip, uint256 ethAllocation) = tradeAccounting
-                .getHedgeUtils(feeDivisor, susdBal);
-            IERC20(susdAddress).transfer(msg.sender, tip);
-
-            _allocateToEth(ethAllocation);
-            _issueMaxSetWithHelper();
+            uint256 ethAllocation = tradeAccounting.getEthAllocationOnHedge(
+                susdBal
+            );
+            _allocateToEth(ethAllocation, minRates[0]);
+            _issueMaxSet(minRates[1]);
         }
     }
 
-    function _allocateToEth(uint256 susdValue) private {
-        uint256 minRate = _getExpectedRate(susdAddress, ETH_ADDRESS, susdValue);
-        _swapTokenToEther(susdAddress, susdValue, minRate);
+    function _allocateToEth(uint256 _susdValue, uint256 _minRate) private {
+        _swapTokenToEther(susdAddress, _susdValue, _minRate);
     }
 
     function _stake() private {
@@ -294,25 +290,20 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*
      * @notice Called whenever ETH bal is less than (hedgeAssets / ETH_TARGET)
      * @dev Rebalances Set holdings to ETH holdings
+     * @param kyber.getExpectedRate(currentSetAsset => ETH)
      */
-    function rebalanceSetToEth() external whenNotPaused {
-        require(
-            block.timestamp.sub(lastSetToEthRebalance) > BREATHING_PERIOD,
-            "Not time to rebalance yet"
-        );
+    function rebalanceSetToEth(uint256 _minRate)
+        external
+        onlyOwner
+        whenNotPaused
+    {
         uint256 redemptionQuantity = tradeAccounting
             .calculateAssetChangesForRebalanceSetToEth();
         _redeemRebalancingSet(redemptionQuantity);
 
         address activeAsset = getAssetCurrentlyActiveInSet();
         uint256 activeAssetBalance = getActiveSetAssetBalance();
-        uint256 minRate = _getExpectedRate(
-            activeAsset,
-            ETH_ADDRESS,
-            activeAssetBalance
-        );
-
-        _swapTokenToEther(activeAsset, activeAssetBalance, minRate);
+        _swapTokenToEther(activeAsset, activeAssetBalance, _minRate);
     }
 
     function _unwindStakedPosition(
@@ -388,22 +379,19 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /* ========================================================================================= */
     /*                                     Set Protocol                                          */
     /* ========================================================================================= */
-
-    function _issueMaxSetWithHelper() private {
-        uint256 minRate = _getExpectedRate(
-            susdAddress,
-            getAssetCurrentlyActiveInSet(),
-            getSusdBalance()
-        );
-        _issueMaxSet(minRate);
-    }
-
-    function _issueMaxSet(uint256 minRate) private {
+    event ActiveAsset(address asset);
+    event ActiveAssetBal(uint bal);
+    function _issueMaxSet(uint256 _minRate) private {
         uint256 susdBal = getSusdBalance();
         if (susdBal > 0) {
             address activeAsset = getAssetCurrentlyActiveInSet();
-            _swapTokenToToken(susdAddress, susdBal, activeAsset, minRate);
+            emit ActiveAsset(activeAsset);
+            _swapTokenToToken(susdAddress, susdBal, activeAsset, _minRate);
 
+            //
+            uint bal = getActiveSetAssetBalance();
+            emit ActiveAssetBal(bal);
+            //  
             uint256 issuanceQuantity = tradeAccounting
                 .calculateSetIssuanceQuantity();
             rebalancingModule.issueRebalancingSet(

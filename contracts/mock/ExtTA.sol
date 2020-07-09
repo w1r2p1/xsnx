@@ -33,4 +33,21 @@ contract ExtTA is TradeAccounting {
     function extGetContractSnxValue() public view returns(uint) {
         return getContractSnxValue();
     }
+    function extCalculateNetAssetValueOnMint(uint256 weiPerOneSnx, uint256 snxBalanceBefore) public view returns(uint){
+        return calculateNetAssetValueOnMint(weiPerOneSnx, snxBalanceBefore);
+    }
+    function extCalculateNonSnxAssetValue() public view returns(uint){
+        return calculateNonSnxAssetValue();
+    }
+    function extGetSetCollateralTokens() public view returns(uint){
+        return getSetCollateralTokens();
+    }
+    function extCalculateRedeemTokenPrice(uint256 tokensToRedeem, uint256 totalSupply, uint256 snxBalanceOwned, uint256 contractDebtValue) public view returns(uint){
+        return calculateRedeemTokenPrice(tokensToRedeem, totalSupply, snxBalanceOwned, contractDebtValue);
+    }
+    function extGetWeiPerOneSnx(uint256 snxBalanceBefore, uint ethUsedForSnx) public view returns(uint){
+        return getWeiPerOneSnx(snxBalanceBefore, ethUsedForSnx);
+    }
+
+
 }

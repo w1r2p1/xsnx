@@ -36,10 +36,8 @@ module.exports = async function (deployer, network, accounts) {
             return deployer
               .deploy(MockSynthetixState)
               .then((synthetixState) => {
-                const tokenInitialSupply = web3.utils.toWei('1000')
-
                 return deployer
-                  .deploy(MockSynthetix, tokenInitialSupply)
+                  .deploy(MockSynthetix)
                   .then((synthetix) => {
                     return deployer
                       .deploy(
@@ -62,7 +60,10 @@ module.exports = async function (deployer, network, accounts) {
                               .then((collateralSetToken) => {
                                 return deployer
                                   .deploy(MockSUSD)
-                                  .then((susd) => {
+                                  .then(async(susd) => {
+                                    await synthetix.setSusdAddress(susd.address)
+                                    console.log('susd address set on mock synthetix')
+
                                     return deployer
                                       .deploy(
                                         MockSetToken,
@@ -242,6 +243,7 @@ module.exports = async function (deployer, network, accounts) {
                                                           console.log(
                                                             'ta: approve kyber: set asset 2',
                                                           )
+                                                          // await xsnx.approveSetTransferProxy()
                                                         })
                                                     },
                                                   )

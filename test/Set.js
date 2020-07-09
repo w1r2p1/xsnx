@@ -1,5 +1,5 @@
 const { BN } = require('@openzeppelin/test-helpers')
-const { assertBNEqual, BN_ZERO } = require('./utils')
+const { assertBNEqual, BN_ZERO, DEC_18 } = require('./utils')
 const ExtTradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
@@ -115,7 +115,6 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
 
     it('should calculate the correct set redemption quantity for an active set asset with 18 decimals', async () => {
       const susdToBurn = new BN(web3.utils.toWei('10'))
-      const dec_18 = new BN(web3.utils.toWei('1'))
 
       const multiplier = new BN(103)
       const percent = new BN(100)
@@ -130,12 +129,12 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
 
       let setAssetToSell = expectedRate
         .mul(susdToBurn)
-        .div(dec_18)
+        .div(DEC_18)
         .mul(multiplier)
         .div(percent)
 
       const decimals = new BN(10).pow(await weth.decimals())
-      setAssetToSell = setAssetToSell.mul(decimals).div(dec_18)
+      setAssetToSell = setAssetToSell.mul(decimals).div(DEC_18)
 
       const setRedeemable = await tradeAccounting.calculateSetQuantity(
         setAssetToSell,
@@ -152,7 +151,6 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
       await collateralSetToken.setActiveAsset(1);
       
       const susdToBurn = new BN(web3.utils.toWei('10'))
-      const dec_18 = new BN(web3.utils.toWei('1'))
 
       const multiplier = new BN(103)
       const percent = new BN(100)
@@ -167,12 +165,12 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
 
       let setAssetToSell = expectedRate
         .mul(susdToBurn)
-        .div(dec_18)
+        .div(DEC_18)
         .mul(multiplier)
         .div(percent)
 
       const decimals = new BN(10).pow(await usdc.decimals())
-      setAssetToSell = setAssetToSell.mul(decimals).div(dec_18)
+      setAssetToSell = setAssetToSell.mul(decimals).div(DEC_18)
 
       const setRedeemable = await tradeAccounting.calculateSetQuantity(
         setAssetToSell,

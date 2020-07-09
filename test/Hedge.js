@@ -1,7 +1,8 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
-const { assertBNEqual, BN_ZERO } = require('./utils')
+const { assertBNEqual, BN_ZERO, bn } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
+const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockSUSD = artifacts.require('MockSUSD')
@@ -13,17 +14,18 @@ contract('xSNXCore: Hedge function', async (accounts) => {
 
   beforeEach(async () => {
     xsnx = await xSNXCore.deployed()
+    tradeAccounting = await TradeAccounting.deployed()
     synthetix = await MockSynthetix.deployed()
     susd = await MockSUSD.deployed()
     kyberProxy = await MockKyberProxy.deployed()
     setToken = await MockSetToken.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
 
-    await susd.transfer(synthetix.address, web3.utils.toWei('10'))
-    await synthetix.setSusdAddress(susd.address)
+    await susd.transfer(synthetix.address, web3.utils.toWei('100'))
+    await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
     await web3.eth.sendTransaction({
       from: deployerAccount,
-      value: web3.utils.toWei('5'),
+      value: web3.utils.toWei('1'),
       to: kyberProxy.address,
     })
     await setToken.transfer(rebalancingModule.address, web3.utils.toWei('2'))
@@ -32,20 +34,20 @@ contract('xSNXCore: Hedge function', async (accounts) => {
   describe('Staking and hedging', async () => {
     it('should revert when paused', async () => {
       await xsnx.pause()
-      await truffleAssert.reverts(xsnx.hedge(), 'Pausable: paused')
+      await truffleAssert.reverts(xsnx.hedge(['0', '0']), 'Pausable: paused')
     })
 
-    it('should result in sUSD paid out to sender', async () => {
-      await synthetix.setSusdAddress(susd.address)
+    it('should revert when called by non-owner', async () => {
       await xsnx.unpause()
-      await xsnx.hedge({ from: account1 })
-      const susdBal = await susd.balanceOf(account1)
-      assert(susdBal.gt(BN_ZERO), true)
+      await truffleAssert.reverts(xsnx.hedge(['0', '0'], { from: account1}), 'Ownable: caller is not the owner')
     })
 
     it('should result in an ETH balance', async () => {
-      const ethBal = await web3.eth.getBalance(xsnx.address)
-      assert(new BN(ethBal).gt(BN_ZERO), true)
+      const ethBalBefore = await web3.eth.getBalance(xsnx.address)
+      await xsnx.mint('0', { value: web3.utils.toWei('0.01')})
+      await xsnx.hedge(['0', '0'], { from: deployerAccount })
+      const ethBalAfter = await web3.eth.getBalance(xsnx.address)
+      assert(bn(ethBalAfter).gt(bn(ethBalBefore)), true)
     })
 
     it('should result in a Set balance', async () => {

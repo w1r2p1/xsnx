@@ -63,8 +63,8 @@ import "./interface/ISetAssetBaseCollateral.sol";
 	--------------------------------------
 	Total                $805   | 100%   
 
-	Hedge Assets	   | $100
-	Debt value		   | $105
+	Hedge Assets	   | $105
+	Debt value		   | $100
 	-------------------------
 	Hedge/debt ratio   | 105%
   */
@@ -75,6 +75,7 @@ contract TradeAccounting is Whitelist {
     uint256 private constant DEC_18 = 1e18;
     uint256 private constant PERCENT = 100;
     uint256 private constant ETH_TARGET = 4;
+    uint256 private constant SLIPPAGE_RATE = 99;
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant REBALANCE_THRESHOLD = 105;
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
@@ -210,7 +211,9 @@ contract TradeAccounting is Whitelist {
         uint256 weiPerOneSnx,
         uint256 snxBalanceBefore
     ) internal view returns (uint256) {
-        uint256 snxTokenValueInWei = snxBalanceBefore.mul(weiPerOneSnx);
+        uint256 snxTokenValueInWei = snxBalanceBefore.mul(weiPerOneSnx).div(
+            DEC_18
+        );
         uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
         uint256 contractDebtValue = getContractDebtValue();
         return snxTokenValueInWei.add(nonSnxAssetValue).sub(contractDebtValue);
@@ -266,12 +269,12 @@ contract TradeAccounting is Whitelist {
                     INITIAL_SUPPLY_MULTIPLIER
                 );
         }
-
         uint256 weiPerOneSnx = getWeiPerOneSnx(snxBalanceBefore, ethUsedForSnx);
         uint256 pricePerToken = calculateNetAssetValueOnMint(
             weiPerOneSnx,
             snxBalanceBefore
         )
+            .mul(DEC_18)
             .div(totalSupply);
 
         return ethUsedForSnx.mul(DEC_18).div(pricePerToken);
@@ -283,16 +286,14 @@ contract TradeAccounting is Whitelist {
         uint256 snxBalanceOwned,
         uint256 contractDebtValue
     ) internal view returns (uint256 pricePerToken) {
-        // SNX won't actually be sold but this is a proxy
-        // for slippage in calculating redemption price
+        // SNX won't actually be sold (burns are distributed in ETH) but
+        // this is a proxy for return value for calculating redemption value
         uint256 snxToSell = snxBalanceOwned.mul(tokensToRedeem).div(
             totalSupply
         );
-        (uint256 weiPerOneSnx, ) = getExpectedRate(
-            snxAddress,
-            ETH_ADDRESS,
-            snxToSell
-        );
+        uint snxUsdPrice = getSnxPrice();
+        uint ethUsdPrice = getSynthPrice(seth);
+        uint weiPerOneSnx = snxUsdPrice.mul(DEC_18).div(ethUsdPrice).mul(SLIPPAGE_RATE).div(PERCENT);
 
         uint256 debtValueInWei = calculateDebtValueInWei(contractDebtValue);
         pricePerToken = calculateNetAssetValueOnRedeem(
@@ -799,15 +800,17 @@ contract TradeAccounting is Whitelist {
         return (totalSusdToBurn, snxToSell, activeAsset);
     }
 
-    // usd terms
-    function getHedgeUtils(uint256 feeDivisor, uint256 susdBal)
+    /*
+     * @notice Helper for `hedge` function
+     * @dev Determines share of sUSD to allocate to ETH
+     * @dev Implicitly determines Set allocation as well
+     * @param sUSD balance post minting
+     */
+    function getEthAllocationOnHedge(uint256 susdBal)
         public
         view
-        returns (uint256 tip, uint256 ethAllocation)
+        returns (uint256 ethAllocation)
     {
-        tip = susdBal.div(PERCENT);
-        susdBal = susdBal.sub(tip);
-
         uint256 ethUsd = getSynthPrice(seth);
 
         uint256 setHoldingsInUsd = getSetHoldingsValueInWei().mul(ethUsd).div(

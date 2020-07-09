@@ -8,31 +8,41 @@ contract MockSynthetix is MockERC20 {
     using SafeMath for uint256;
     uint debtBalance;
     bool underCollat = false;
+    uint snxPrice = 1e15;
+    uint DEC_18 = 1e18;
 
     address susdAddress;
+
+    mapping(address => uint) accountDebt;
 
     function setSusdAddress(address _susdAddress) public {
         susdAddress = _susdAddress;
     }
 
-    constructor(uint _initialSupply) MockERC20("SNX", "Synthetix", 18, _initialSupply) public {
+    constructor() MockERC20("SNX", "Synthetix", 18, 10000e18) public {
 
     }
 
     function issueMaxSynths() external {
-        IERC20(susdAddress).transfer(msg.sender, 1e18);
+        uint snxVal = balanceOf(msg.sender).mul(snxPrice).div(DEC_18); // how to include role of escrowed?
+        uint currentDebt = accountDebt[msg.sender];
+        uint futureDebt = snxVal.mul(targetRatio()).div(DEC_18); // 10e18 * 1e18 / 1.25e17
+        if(currentDebt >= futureDebt) return;
+        uint susdToSend = futureDebt.sub(currentDebt);
+        IERC20(susdAddress).transfer(msg.sender, susdToSend);
+        accountDebt[msg.sender] = futureDebt;
     }
 
     function debtBalanceOf(address issuer, bytes32 currencyKey) external view returns (uint) {
-        return 1000000000000000000;
+        return accountDebt[issuer];
     }
     
     function burnSynths(uint amount) external {
-        underCollat = false;
+        accountDebt[msg.sender] = accountDebt[msg.sender].sub(amount);
     }
 
-    function setDebtForRebalanceTowardsHedge() external {
-        
+    function addDebt(address issuer, uint amount) public {
+        accountDebt[issuer] = accountDebt[issuer].add(amount);
     }
 
     function collateralisationRatio(address account) external view returns(uint) {
@@ -42,15 +52,15 @@ contract MockSynthetix is MockERC20 {
         return 125000000000000000; // 800%
     }
 
-    function stake(uint snxValueHeld) public {
-        debtBalance = snxValueHeld.div(8);
-    }
-
-    function balanceOf(address _address) public view returns(uint){
-        return 9e18; // owned
-    }
-
     function toggleCollat(bool _bool) public {
         underCollat = _bool;
+    }
+
+    function targetRatio() public view returns(uint){
+        return 125000000000000000; // 1.25e17
+    }
+
+    function getSusdAddress() public view returns(address){
+        return susdAddress;
     }
 }

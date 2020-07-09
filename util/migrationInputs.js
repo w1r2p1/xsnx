@@ -5,6 +5,12 @@ const deployment = 'ETH20SMACO'
 
 const isEth20Smaco = deployment === 'ETH20SMACO'
 
+const resolver = synthetix.getTarget({
+  network: 'kovan',
+  contract: 'AddressResolver',
+}).address
+console.log('resolver', resolver)
+
 const migrationInputs = {
   SET_ADDRESS: {
     kovan: '0x76f579bb28a470913AbE98fc9d76145c26839af7', // LINKETHRSI
@@ -23,10 +29,11 @@ const migrationInputs = {
     mainnet: '',
   },
   ADDRESS_RESOLVER: {
-    kovan: synthetix.getTarget({
-      network: 'kovan',
-      contract: 'AddressResolver',
-    }).address,
+    // kovan: synthetix.getTarget({
+    //   network: 'kovan',
+    //   contract: 'AddressResolver',
+    // }).address,
+    kovan:'0x25ee175d78B22A55982c09e6A03D605aE5B5c17C',
     mainnet: '',
   },
   REBALANCING_MODULE: {
