@@ -93,9 +93,9 @@ contract TradeAccounting is Whitelist {
     address private setAddress;
     address private susdAddress;
 
-    bytes32 snx = "SNX";
-    bytes32 susd = "sUSD";
-    bytes32 seth = "sETH";
+    bytes32 constant snx = "SNX";
+    bytes32 constant susd = "sUSD";
+    bytes32 constant seth = "sETH";
 
     bytes32[2] synthSymbols;
 
@@ -103,10 +103,12 @@ contract TradeAccounting is Whitelist {
 
     constructor(
         address _setAddress,
+        address _kyberProxyAddress,
         bytes32[2] memory _synthSymbols,
         address[2] memory _setComponentAddresses
     ) public {
         setAddress = _setAddress;
+        kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
         synthSymbols = _synthSymbols;
         setComponentAddresses = _setComponentAddresses;
     }
@@ -197,7 +199,6 @@ contract TradeAccounting is Whitelist {
         uint256 contractDebtValue = getContractDebtValue();
 
         uint256 pricePerToken = calculateRedeemTokenPrice(
-            tokensToRedeem,
             totalSupply,
             snxBalanceOwned,
             contractDebtValue
@@ -216,20 +217,29 @@ contract TradeAccounting is Whitelist {
         );
         uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
         uint256 contractDebtValue = getContractDebtValue();
-        return snxTokenValueInWei.add(nonSnxAssetValue).sub(contractDebtValue);
+        uint256 contractDebtValueInWei = calculateDebtValueInWei(
+            contractDebtValue
+        );
+        return
+            snxTokenValueInWei.add(nonSnxAssetValue).sub(
+                contractDebtValueInWei
+            );
     }
 
     // eth terms
     function calculateNetAssetValueOnRedeem(
         uint256 weiPerOneSnx,
         uint256 snxBalanceOwned,
-        uint256 contractDebtValue
+        uint256 contractDebtValueInWei
     ) internal view returns (uint256) {
         uint256 snxTokenValueInWei = snxBalanceOwned.mul(weiPerOneSnx).div(
             DEC_18
         );
         uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
-        return snxTokenValueInWei.add(nonSnxAssetValue).sub(contractDebtValue);
+        return
+            snxTokenValueInWei.add(nonSnxAssetValue).sub(
+                contractDebtValueInWei
+            );
     }
 
     // eth terms
@@ -248,6 +258,20 @@ contract TradeAccounting is Whitelist {
         weiPerOneSnx = ethUsedForSnx.mul(DEC_18).div(snxBought);
     }
 
+    function getWeiPerOneSnxOnRedeem()
+        internal
+        view
+        returns (uint256 weiPerOneSnx)
+    {
+        uint256 snxUsdPrice = getSnxPrice();
+        uint256 ethUsdPrice = getSynthPrice(seth);
+        weiPerOneSnx = snxUsdPrice
+            .mul(DEC_18)
+            .div(ethUsdPrice)
+            .mul(SLIPPAGE_RATE)
+            .div(PERCENT);
+    }
+
     function getActiveAssetSynthSymbol()
         internal
         view
@@ -258,7 +282,7 @@ contract TradeAccounting is Whitelist {
             : (synthSymbols[1]);
     }
 
-    function calculateTokensToMint(
+    function calculateTokensToMintWithEth(
         uint256 snxBalanceBefore,
         uint256 ethUsedForSnx,
         uint256 totalSupply
@@ -270,30 +294,54 @@ contract TradeAccounting is Whitelist {
                 );
         }
         uint256 weiPerOneSnx = getWeiPerOneSnx(snxBalanceBefore, ethUsedForSnx);
-        uint256 pricePerToken = calculateNetAssetValueOnMint(
+        uint pricePerToken = calculateIssueTokenPrice(weiPerOneSnx, snxBalanceBefore, totalSupply);
+
+        return ethUsedForSnx.mul(DEC_18).div(pricePerToken);
+    }
+
+    function calculateTokensToMintWithSnx(
+        uint256 snxBalanceBefore,
+        uint256 snxBalanceAdded,
+        uint256 totalSupply
+    ) public view returns (uint256) {
+        if (totalSupply == 0) {
+            return
+                IERC20(snxAddress).balanceOf(caller).mul(
+                    INITIAL_SUPPLY_MULTIPLIER
+                );
+        }
+        uint256 snxUsd = getSynthPrice(snx);
+        uint256 ethUsd = getSynthPrice(seth);
+        uint256 weiPerOneSnx = snxUsd.mul(DEC_18).div(ethUsd);
+        // need to derive snx contribution in eth terms for NAV calc
+        uint256 proxyEthUsedForSnx = weiPerOneSnx.mul(snxBalanceAdded).div(
+            DEC_18
+        );
+        uint pricePerToken = calculateIssueTokenPrice(weiPerOneSnx, snxBalanceBefore, totalSupply);
+        return proxyEthUsedForSnx.mul(DEC_18).div(pricePerToken);
+    }
+
+    function calculateIssueTokenPrice(
+        uint256 weiPerOneSnx,
+        uint256 snxBalanceBefore,
+        uint256 totalSupply
+    ) public view returns (uint256 pricePerToken) {
+        pricePerToken = calculateNetAssetValueOnMint(
             weiPerOneSnx,
             snxBalanceBefore
         )
             .mul(DEC_18)
             .div(totalSupply);
-
-        return ethUsedForSnx.mul(DEC_18).div(pricePerToken);
     }
 
     function calculateRedeemTokenPrice(
-        uint256 tokensToRedeem,
         uint256 totalSupply,
         uint256 snxBalanceOwned,
         uint256 contractDebtValue
-    ) internal view returns (uint256 pricePerToken) {
-        // SNX won't actually be sold (burns are distributed in ETH) but
-        // this is a proxy for return value for calculating redemption value
-        uint256 snxToSell = snxBalanceOwned.mul(tokensToRedeem).div(
-            totalSupply
-        );
-        uint snxUsdPrice = getSnxPrice();
-        uint ethUsdPrice = getSynthPrice(seth);
-        uint weiPerOneSnx = snxUsdPrice.mul(DEC_18).div(ethUsdPrice).mul(SLIPPAGE_RATE).div(PERCENT);
+    ) public view returns (uint256 pricePerToken) {
+        // SNX won't actually be sold (burns are only distributed in available ETH) but
+        // this is a proxy for the return value of SNX that would be sold
+        uint256 weiPerOneSnx = getWeiPerOneSnxOnRedeem();
 
         uint256 debtValueInWei = calculateDebtValueInWei(contractDebtValue);
         pricePerToken = calculateNetAssetValueOnRedeem(
@@ -584,6 +632,10 @@ contract TradeAccounting is Whitelist {
 
         uint256 snxValue = getContractSnxValue();
 
+        // variable names are generically named because they
+        // don't represent discrete values, but rather terms
+        // in a reduced algebraic formula constructed to work
+        // within solidity math constraints
         uint256 firstTerm = DEC_18.mul(
             escrowedSnxValue.sub(susdToBurnToFixRatio)
         );
@@ -879,10 +931,6 @@ contract TradeAccounting is Whitelist {
             synthetixStateName
         );
         synthetixState = ISynthetixState(synthetixStateAddress);
-    }
-
-    function setKyberNetworkAddress(address _kyberNetwork) public onlyOwner {
-        kyberNetworkProxy = IKyberNetworkProxy(_kyberNetwork);
     }
 
     function setCallerAddress(address _caller) public onlyOwner {

@@ -1,6 +1,6 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
-const { assertBNEqual, BN_ZERO, ETH_ADDRESS, addSnapshotBeforeRestoreAfterEach } = require('./utils')
+const { assertBNEqual, BN_ZERO, ETH_ADDRESS } = require('./utils')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSUSD = artifacts.require('MockSUSD')
 const MockWETH = artifacts.require('MockWETH')
@@ -12,7 +12,6 @@ const ExtTradeAccounting = artifacts.require('ExtTA')
 contract('TradeAccounting: Kyber', async () => {
   const tokenAmount = web3.utils.toWei('1')
 
-  // addSnapshotBeforeRestoreAfterEach()
   before(async () => {
     tradeAccounting = await ExtTradeAccounting.deployed()
     synthetix = await MockSynthetix.deployed()
@@ -20,7 +19,6 @@ contract('TradeAccounting: Kyber', async () => {
     weth = await MockWETH.deployed()
     usdc = await MockUSDC.deployed()
   })
-
 
   describe('Get Expected Rate', async () => {
     it('should return an expected rate for ETH/SNX', async () => {
@@ -63,7 +61,9 @@ contract('TradeAccounting: Kyber', async () => {
   describe('Direct calls to Kyber swap functions', async () => {
     it('should result in a revert if swapEtherToToken is called by any address but the caller', async () => {
       await truffleAssert.reverts(
-        tradeAccounting.swapEtherToToken(susd.address, 0),
+        tradeAccounting.swapEtherToToken(susd.address, 0, {
+          value: web3.utils.toWei('1'),
+        }),
         'Only xSNX contract can call',
       )
     })

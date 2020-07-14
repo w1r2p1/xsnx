@@ -76,7 +76,7 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
       )
     })
 
-    // assume WETH is active asset in ETH20SMACO
+    // assume WETH is active asset in Set
     it('should return the current set asset', async () => {
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       assert.equal(activeAsset, weth.address)

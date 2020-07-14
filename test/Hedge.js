@@ -6,6 +6,7 @@ const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockSUSD = artifacts.require('MockSUSD')
+const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 
@@ -19,6 +20,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
     susd = await MockSUSD.deployed()
     kyberProxy = await MockKyberProxy.deployed()
     setToken = await MockSetToken.deployed()
+    weth = await MockWETH.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
 
     await susd.transfer(synthetix.address, web3.utils.toWei('100'))
@@ -29,6 +31,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
       to: kyberProxy.address,
     })
     await setToken.transfer(rebalancingModule.address, web3.utils.toWei('2'))
+    await weth.transfer(kyberProxy.address, web3.utils.toWei('50'))
   })
 
   describe('Staking and hedging', async () => {

@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "synthetix/contracts/interfaces/IFeePool.sol";
 
 import "./TradeAccounting.sol";
+import "./Whitelist.sol";
 import "./helpers/Pausable.sol";
 
 import "./interface/IRebalancingSetIssuanceModule.sol";
@@ -21,6 +22,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     address private snxAddress;
 
     bytes32 constant susd = "sUSD";
+
     bytes32 constant feePoolName = "FeePool";
     bytes32 constant synthetixName = "Synthetix";
     bytes32 constant rewardEscrowName = "RewardEscrow";
@@ -40,14 +42,19 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     event Mint(
         address indexed user,
         uint256 timestamp,
-        uint256 ethPayable,
-        uint256 mintAmount
+        uint256 valueSent,
+        uint256 mintAmount,
+        bool mintWithEth
     );
-    event Burn(address indexed user, uint256 timestamp, uint256 burnAmount);
+    event Burn(
+        address indexed user,
+        uint256 timestamp,
+        uint256 burnAmount,
+        uint256 valueToSend
+    );
     event RebalanceToSnx(uint256 timestamp, uint256 setSold);
     event RebalanceToHedge(uint256 timestamp, uint256 snxSold);
-    event WithdrawEthFee(uint256 amount);
-    event WithdrawSusdFee(uint256 amount);
+    event WithdrawFees(uint256 ethAmount, uint susdAmount);
 
     constructor(address payable _tradeAccountingAddress, address _setAddress)
         public
@@ -78,13 +85,28 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             minRate
         );
 
-        uint256 mintAmount = tradeAccounting.calculateTokensToMint(
+        uint256 mintAmount = tradeAccounting.calculateTokensToMintWithEth(
             snxBalanceBefore,
             ethUsedForSnx,
             totalSupply()
         );
 
-        emit Mint(msg.sender, block.timestamp, msg.value, mintAmount);
+        emit Mint(msg.sender, block.timestamp, msg.value, mintAmount, true);
+        return super._mint(msg.sender, mintAmount);
+    }
+
+    function mintWithSnx(uint256 snxAmount) external whenNotPaused {
+        require(snxAmount > 0, "Must send SNX");
+        uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
+        IERC20(snxAddress).transferFrom(msg.sender, address(this), snxAmount);
+
+        uint mintAmount = tradeAccounting.calculateTokensToMintWithSnx(
+            snxBalanceBefore,
+            snxAmount,
+            totalSupply()
+        );
+
+        emit Mint(msg.sender, block.timestamp, snxAmount, mintAmount, false);
         return super._mint(msg.sender, mintAmount);
     }
 
@@ -110,9 +132,12 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             "Redeem amount exceeds available liquidity"
         );
 
+        uint256 valueToSend = valueToRedeem.sub(_administerFee(valueToRedeem));
         super._burn(msg.sender, tokensToRedeem);
-        emit Burn(msg.sender, block.timestamp, tokensToRedeem);
-        msg.sender.transfer(valueToRedeem.sub(_administerFee(valueToRedeem)));
+        emit Burn(msg.sender, block.timestamp, tokensToRedeem, valueToSend);
+
+        (bool success, ) = msg.sender.call.value(valueToSend)("");
+        require(success, "Burn transfer failed");
     }
 
     /* ========================================================================================= */
@@ -379,19 +404,12 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /* ========================================================================================= */
     /*                                     Set Protocol                                          */
     /* ========================================================================================= */
-    event ActiveAsset(address asset);
-    event ActiveAssetBal(uint bal);
+
     function _issueMaxSet(uint256 _minRate) private {
         uint256 susdBal = getSusdBalance();
         if (susdBal > 0) {
             address activeAsset = getAssetCurrentlyActiveInSet();
-            emit ActiveAsset(activeAsset);
             _swapTokenToToken(susdAddress, susdBal, activeAsset, _minRate);
-
-            //
-            uint bal = getActiveSetAssetBalance();
-            emit ActiveAssetBal(bal);
-            //  
             uint256 issuanceQuantity = tradeAccounting
                 .calculateSetIssuanceQuantity();
             rebalancingModule.issueRebalancingSet(
@@ -457,8 +475,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         msg.sender.transfer(ethFeesToWithdraw);
         IERC20(susdAddress).transfer(msg.sender, susdFeesToWithdraw);
 
-        emit WithdrawEthFee(ethFeesToWithdraw);
-        emit WithdrawSusdFee(susdFeesToWithdraw);
+        emit WithdrawFees(ethFeesToWithdraw, susdFeesToWithdraw);
     }
 
     // need to approve [snx, susd, setComponentA, setComponentB]

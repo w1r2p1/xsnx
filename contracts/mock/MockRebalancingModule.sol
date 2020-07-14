@@ -6,7 +6,6 @@ contract MockRebalancingModule {
     address setToken;
     address wethAddress;
 
-    // uint valueOfOneSetInUsd = 250e18;
     event QtySent(uint amount);
 
     function setWethAddress(address _wethAddress) public {
@@ -31,8 +30,6 @@ contract MockRebalancingModule {
         uint256 _rebalancingSetQuantity,
         bool _keepChangeInVault
     ) public {
-        // IERC20 weth = IERC20(wethAddress);
-        // weth.transferFrom(msg.sender, address(this), weth.balanceOf(msg.sender)); // job done by setTransferProxy on testnet/mainnet
         IERC20(setToken).transfer(msg.sender, _rebalancingSetQuantity);
         emit QtySent(_rebalancingSetQuantity);
     }

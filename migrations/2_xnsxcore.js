@@ -39,6 +39,7 @@ module.exports = async function (deployer, network, accounts) {
                 return deployer
                   .deploy(MockSynthetix)
                   .then((synthetix) => {
+                    synthetix.setRewardEscrowAddress(rewardEscrow.address);
                     return deployer
                       .deploy(
                         MockAddressResolver,
@@ -103,6 +104,7 @@ module.exports = async function (deployer, network, accounts) {
                                                   .deploy(
                                                     ExtTradeAccounting,
                                                     setToken.address,
+                                                    kyberProxy.address,
                                                     synthSymbols,
                                                     setComponentAddresses,
                                                   )
@@ -212,13 +214,6 @@ module.exports = async function (deployer, network, accounts) {
                                                           console.log(
                                                             'ta: susd address set',
                                                           )
-                                                          await tradeAccounting.setKyberNetworkAddress(
-                                                            kyberProxy.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: kyber proxy set',
-                                                          )
-
                                                           await tradeAccounting.approveKyber(
                                                             synthetix.address,
                                                           )

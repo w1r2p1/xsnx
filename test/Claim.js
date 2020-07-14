@@ -1,6 +1,6 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
-const { assertBNEqual, BN_ZERO } = require('./utils')
+const { assertBNEqual, BN_ZERO, DEC_18, bn } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const ExtTradeAccounting = artifacts.require('ExtTA')
 const MockSUSD = artifacts.require('MockSUSD')
@@ -11,6 +11,7 @@ const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSynthetixState = artifacts.require('MockSynthetixState')
 const MockWETH = artifacts.require('MockWETH')
+const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 
 contract('xSNXCore: Claim', async (accounts) => {
@@ -26,13 +27,13 @@ contract('xSNXCore: Claim', async (accounts) => {
     exchRates = await MockExchangeRates.deployed()
     synthetix = await MockSynthetix.deployed()
     weth = await MockWETH.deployed()
+    setToken = await MockSetToken.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
-    synthetixState = await MockSynthetixState.deployed();
+    synthetixState = await MockSynthetixState.deployed()
 
     await susd.transfer(feePool.address, web3.utils.toWei('5'))
     await weth.transfer(rebalancingModule.address, web3.utils.toWei('5'))
   })
-
 
   describe('Claiming fees/rewards', async (accounts) => {
     it('should revert if called from non owner', async () => {
@@ -53,22 +54,41 @@ contract('xSNXCore: Claim', async (accounts) => {
       const withdrawableSusdFees = await xsnx.withdrawableSusdFees()
       assertBNEqual(withdrawableSusdFees.gt(BN_ZERO), true)
     })
-    
+
     it('should exchange sUSD for ETH on successful claim', async () => {
-        await xsnx.claim(0, [0, 0], true, { from: deployerAccount })
-        const ethBal = await tradeAccounting.getEthBalance()
-        assertBNEqual(ethBal.gt(BN_ZERO), true)
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+      await xsnx.claim(0, [0, 0], true, { from: deployerAccount })
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+      assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
     })
-    
+
     it('should fix c-ratio before claiming if collateralization is below', async () => {
-        await exchRates.toggleCollat();
-        await synthetix.toggleCollat(true);
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        value: web3.utils.toWei('1'),
+        to: kyberProxy.address,
+      })
+      await susd.transfer(synthetix.address, web3.utils.toWei('500'))
+      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
+      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+      await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+      await xsnx.hedge(['0', '0'])
 
-        susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
-        await xsnx.claim(susdToBurnCollat, [0, 0], true, { from: deployerAccount });
 
-        const ethBal = await tradeAccounting.getEthBalance()
-        assertBNEqual(ethBal.gt(BN_ZERO), true)
+      await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.02'))  
+
+      const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
+
+      await xsnx.claim(susdToBurnCollat, [0, 0], true, {
+        from: deployerAccount,
+      })
+
+      // sUSD is immediately exchanged for ETH on claims so a
+      // higher ETH balance signifies a successful claim
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+      assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
     })
   })
 })
