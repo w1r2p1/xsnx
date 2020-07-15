@@ -69,9 +69,10 @@ contract('xSNXCore: Rebalances', async (accounts) => {
         .add(bn(susdToEclipseEscrowed))
         .add(susdToBurnToUnlockTransfer)
 
-      const snxPrice = await exchangeRates.rateForCurrency(
+      const snxPriceObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('SNX'),
       )
+      const snxPrice = snxPriceObj[0]
       const snxToSell = valueToUnlockInUsd.mul(DEC_18).div(bn(snxPrice))
 
       const contractRebalanceReturn = await tradeAccounting.extCalculateAssetChangesForRebalanceToHedge()
@@ -83,9 +84,6 @@ contract('xSNXCore: Rebalances', async (accounts) => {
     it('should be able to rebalance to hedge assets when necessary', async () => {
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
 
-      const debtBalance = await tradeAccounting.extGetContractDebtValue()
-      const hedgeAssetsValueUsd = await tradeAccounting.extCalculateHedgeAssetsValueInUsd()
-
       const isRequired = await tradeAccounting.isRebalanceTowardsHedgeRequired()
       assert.equal(isRequired, true)
 
@@ -96,9 +94,6 @@ contract('xSNXCore: Rebalances', async (accounts) => {
         ['0', '0'],
         rebalanceVals[1], // snxToSell
       )
-
-      const debtBalanceAfter = await tradeAccounting.extGetContractDebtValue()
-      const hedgeAssetsValueUsdAfter = await tradeAccounting.extCalculateHedgeAssetsValueInUsd()
 
       const isRequiredAfter = await tradeAccounting.isRebalanceTowardsHedgeRequired()
       assert.equal(isRequiredAfter, false)

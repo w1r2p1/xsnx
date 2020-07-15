@@ -105,11 +105,15 @@ contract TradeAccounting is Whitelist {
     constructor(
         address _setAddress,
         address _kyberProxyAddress,
+        address _snxAddress,
+        address _susdAddress,
         bytes32[2] memory _synthSymbols,
         address[2] memory _setComponentAddresses
     ) public {
         setAddress = _setAddress;
         kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
+        snxAddress = _snxAddress;
+        susdAddress = _susdAddress;
         synthSymbols = _synthSymbols;
         setComponentAddresses = _setComponentAddresses;
     }
@@ -554,18 +558,15 @@ contract TradeAccounting is Whitelist {
     }
 
     function getSnxPrice() internal view returns (uint256) {
-        // (uint[] rates, bool stale) = exchangeRates.ratesAndStaleForCurrencies([snx]);
-        // require(!stale, "Rate stale");
-        // // (uint rate, uint time) = exchangeRates.rateAndUpdatedTime(snx);
-        // // require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
-        // return rates[0];
-        return exchangeRates.rateForCurrency(snx);
-        // return exchangeRates.rateAndUpdatedTime
-        // function ratesAndStaleForCurrencies(bytes32[] calldata currencyKeys) external view returns (uint[] memory, bool);
+        (uint rate, uint time) = exchangeRates.rateAndUpdatedTime(snx);
+        require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        return rate;
     }
 
     function getSynthPrice(bytes32 synth) internal view returns (uint256) {
-        return exchangeRates.rateForCurrency(synth);
+        (uint rate, uint time) = exchangeRates.rateAndUpdatedTime(synth);
+        require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        return rate;
     }
 
     function calculateDebtValueInWei(uint256 debtValue)
@@ -941,13 +942,13 @@ contract TradeAccounting is Whitelist {
         caller = _caller;
     }
 
-    function setSnxAddress(address _snxAddress) public onlyOwner {
-        snxAddress = _snxAddress;
-    }
+    // function setSnxAddress(address _snxAddress) public onlyOwner {
+    //     snxAddress = _snxAddress;
+    // }
 
-    function setSusdAddress(address _susdAddress) public onlyOwner {
-        susdAddress = _susdAddress;
-    }
+    // function setSusdAddress(address _susdAddress) public onlyOwner {
+    //     susdAddress = _susdAddress;
+    // }
 
     function setExchangeRatesAddress() public onlyOwner {
         address exchangeRatesAddress = addressResolver.getAddress(

@@ -6,11 +6,15 @@ contract ExtTA is TradeAccounting {
     constructor(
         address setAddress, 
         address kyberProxyAddress, 
+        address snxAddress,
+        address susdAddress,
         bytes32[2] memory synthSymbols, 
         address[2] memory setComponentAddresses
     ) public TradeAccounting(
         setAddress, 
         kyberProxyAddress, 
+        snxAddress,
+        susdAddress,
         synthSymbols, 
         setComponentAddresses
     ) {}

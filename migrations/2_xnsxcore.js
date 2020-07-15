@@ -106,6 +106,8 @@ module.exports = async function (deployer, network, accounts) {
                                                     ExtTradeAccounting,
                                                     setToken.address,
                                                     kyberProxy.address,
+                                                    synthetix.address,
+                                                    susd.address,
                                                     synthSymbols,
                                                     setComponentAddresses,
                                                   )
@@ -141,18 +143,7 @@ module.exports = async function (deployer, network, accounts) {
                                                           console.log(
                                                             'xsnx: address resolver set',
                                                           )
-                                                          // await xsnx.setSusdAddress(
-                                                          //   susd.address,
-                                                          // )
-                                                          // console.log(
-                                                          //   'xsnx: susd address set',
-                                                          // )
-                                                          // await xsnx.setSnxAddress(
-                                                          //   synthetix.address,
-                                                          // )
-                                                          // console.log(
-                                                          //   'xsnx: snx address set',
-                                                          // )
+                                                    
                                                           await xsnx.setRebalancingSetIssuanceModuleAddress(
                                                             rebalancingModule.address,
                                                           )
@@ -219,18 +210,7 @@ module.exports = async function (deployer, network, accounts) {
                                                           console.log(
                                                             'ta: exch rates set',
                                                           )
-                                                          await tradeAccounting.setSnxAddress(
-                                                            synthetix.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: snx address set',
-                                                          )
-                                                          await tradeAccounting.setSusdAddress(
-                                                            susd.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: susd address set',
-                                                          )
+                                              
                                                           await tradeAccounting.approveKyber(
                                                             synthetix.address,
                                                           )

@@ -94,12 +94,14 @@ contract('xSNXCore: Minting', async (accounts) => {
       const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
       const snxToSend = web3.utils.toWei('10')
 
-      const snxUsd = await exchangeRates.rateForCurrency(
+      const snxUsdObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('SNX'),
       )
-      const ethUsd = await exchangeRates.rateForCurrency(
+      const snxUsd = snxUsdObj[0];
+      const ethUsdObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('sETH'),
       )
+      const ethUsd = ethUsdObj[0]
       const weiPerOneSnx = bn(snxUsd).mul(DEC_18).div(bn(ethUsd))
       const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxToSend)).div(DEC_18)
 
@@ -327,12 +329,14 @@ contract('xSNXCore: Minting', async (accounts) => {
 const getWeiPerOneSnxOnRedemption = async () => {
   const SLIPPAGE = bn(99)
   const PERCENT = bn(100)
-  const ethUsd = await exchangeRates.rateForCurrency(
+  const ethUsdObj = await exchangeRates.rateAndUpdatedTime(
     web3.utils.fromAscii('sETH'),
   )
-  const snxUsd = await exchangeRates.rateForCurrency(
+  const ethUsd = ethUsdObj[0]
+  const snxUsdObj = await exchangeRates.rateAndUpdatedTime(
     web3.utils.fromAscii('SNX'),
   )
+  const snxUsd = snxUsdObj[0]
   const weiPerOneSnx = bn(snxUsd)
     .mul(DEC_18)
     .div(bn(ethUsd))
