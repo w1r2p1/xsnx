@@ -37,18 +37,27 @@ contract('xSNXCore: Hedge function', async (accounts) => {
   describe('Staking and hedging', async () => {
     it('should revert when paused', async () => {
       await xsnx.pause()
-      await truffleAssert.reverts(xsnx.hedge(['0', '0']), 'Pausable: paused')
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await truffleAssert.reverts(
+        xsnx.hedge(['0', '0'], activeAsset),
+        'Pausable: paused',
+      )
     })
 
     it('should revert when called by non-owner', async () => {
       await xsnx.unpause()
-      await truffleAssert.reverts(xsnx.hedge(['0', '0'], { from: account1}), 'Ownable: caller is not the owner')
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await truffleAssert.reverts(
+        xsnx.hedge(['0', '0'], activeAsset, { from: account1 }),
+        'Ownable: caller is not the owner',
+      )
     })
 
     it('should result in an ETH balance', async () => {
       const ethBalBefore = await web3.eth.getBalance(xsnx.address)
-      await xsnx.mint('0', { value: web3.utils.toWei('0.01')})
-      await xsnx.hedge(['0', '0'], { from: deployerAccount })
+      await xsnx.mint('0', { value: web3.utils.toWei('0.01') })
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset, { from: deployerAccount })
       const ethBalAfter = await web3.eth.getBalance(xsnx.address)
       assert(bn(ethBalAfter).gt(bn(ethBalBefore)), true)
     })

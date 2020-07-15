@@ -77,6 +77,7 @@ contract TradeAccounting is Whitelist {
     uint256 private constant ETH_TARGET = 4;
     uint256 private constant SLIPPAGE_RATE = 99;
     uint256 private constant MAX_UINT = 2**256 - 1;
+    uint256 private constant RATE_STALE_TIME = 1800; // half hour
     uint256 private constant REBALANCE_THRESHOLD = 105;
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
 
@@ -294,7 +295,11 @@ contract TradeAccounting is Whitelist {
                 );
         }
         uint256 weiPerOneSnx = getWeiPerOneSnx(snxBalanceBefore, ethUsedForSnx);
-        uint pricePerToken = calculateIssueTokenPrice(weiPerOneSnx, snxBalanceBefore, totalSupply);
+        uint256 pricePerToken = calculateIssueTokenPrice(
+            weiPerOneSnx,
+            snxBalanceBefore,
+            totalSupply
+        );
 
         return ethUsedForSnx.mul(DEC_18).div(pricePerToken);
     }
@@ -317,7 +322,11 @@ contract TradeAccounting is Whitelist {
         uint256 proxyEthUsedForSnx = weiPerOneSnx.mul(snxBalanceAdded).div(
             DEC_18
         );
-        uint pricePerToken = calculateIssueTokenPrice(weiPerOneSnx, snxBalanceBefore, totalSupply);
+        uint256 pricePerToken = calculateIssueTokenPrice(
+            weiPerOneSnx,
+            snxBalanceBefore,
+            totalSupply
+        );
         return proxyEthUsedForSnx.mul(DEC_18).div(pricePerToken);
     }
 
@@ -481,6 +490,8 @@ contract TradeAccounting is Whitelist {
         return ISetToken(setAddress).currentSet();
     }
 
+    // this returns the number of underlying tokens in the current Set asset
+    // e.g., the contract's Set holdings represent 10 WETH
     function getSetCollateralTokens() internal view returns (uint256) {
         return
             getSetBalanceCollateral().mul(getBaseSetComponentUnits()).div(
@@ -543,7 +554,14 @@ contract TradeAccounting is Whitelist {
     }
 
     function getSnxPrice() internal view returns (uint256) {
+        // (uint[] rates, bool stale) = exchangeRates.ratesAndStaleForCurrencies([snx]);
+        // require(!stale, "Rate stale");
+        // // (uint rate, uint time) = exchangeRates.rateAndUpdatedTime(snx);
+        // // require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        // return rates[0];
         return exchangeRates.rateForCurrency(snx);
+        // return exchangeRates.rateAndUpdatedTime
+        // function ratesAndStaleForCurrencies(bytes32[] calldata currencyKeys) external view returns (uint[] memory, bool);
     }
 
     function getSynthPrice(bytes32 synth) internal view returns (uint256) {
@@ -624,23 +642,12 @@ contract TradeAccounting is Whitelist {
     }
 
     function calculateSusdToBurnToEclipseEscrowed(
-        uint256 susdToBurnToFixRatio,
         uint256 issuanceRatio
     ) public view returns (uint256) {
         uint256 escrowedSnxValue = getContractEscrowedSnxValue();
         if (escrowedSnxValue == 0) return 0;
-
-        uint256 snxValue = getContractSnxValue();
-
-        // variable names are generically named because they
-        // don't represent discrete values, but rather terms
-        // in a reduced algebraic formula constructed to work
-        // within solidity math constraints
-        uint256 firstTerm = DEC_18.mul(
-            escrowedSnxValue.sub(susdToBurnToFixRatio)
-        );
-        uint256 secondTerm = issuanceRatio.mul(snxValue.sub(escrowedSnxValue));
-        return (firstTerm.sub(secondTerm)).div(DEC_18);
+        
+        return escrowedSnxValue.mul(issuanceRatio).div(DEC_18);
     }
 
     function calculateSusdToBurnForRedemption(
@@ -681,10 +688,8 @@ contract TradeAccounting is Whitelist {
             issuanceRatio
         );
 
-
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(
-            susdToBurnToFixRatio,
             issuanceRatio
         );
         uint256 susdToBurnForRedemption = calculateSusdToBurnForRedemption(
@@ -709,22 +714,21 @@ contract TradeAccounting is Whitelist {
         view
         returns (uint256 totalSusdToBurn, uint256 snxToSell)
     {
-        uint256 snxValueHeld = getContractSnxValue();
-        uint256 debtValueInUsd = getContractDebtValue();
-        uint256 issuanceRatio = getIssuanceRatio();
+        uint256 snxValueHeld = getContractSnxValue(); // 10e18 (1e18 escrowed)
+        uint256 debtValueInUsd = getContractDebtValue(); // 1.3e18
+        uint256 issuanceRatio = getIssuanceRatio(); // 1.25e17
 
         uint256 susdToBurnToFixRatio = calculateSusdToBurnToFixRatio(
             snxValueHeld,
             debtValueInUsd,
             issuanceRatio
-        );
+        ); // 0.05e18
 
 
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(
-            susdToBurnToFixRatio,
             issuanceRatio
-        );
+        ); // 0.125e18
 
         uint256 hedgeAssetsValueInUsd = calculateHedgeAssetsValueInUsd();
         uint256 valueToUnlockInUsd = debtValueInUsd.sub(hedgeAssetsValueInUsd);
@@ -887,7 +891,7 @@ contract TradeAccounting is Whitelist {
 
     // for when eth bal is below eth target
     // eth terms
-    function calculateAssetChangesForRebalanceSetToEth()
+    function calculateSetToSellForRebalanceSetToEth()
         public
         view
         returns (uint256 setQuantityToSell)

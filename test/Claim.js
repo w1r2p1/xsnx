@@ -74,7 +74,8 @@ contract('xSNXCore: Claim', async (accounts) => {
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      await xsnx.hedge(['0', '0'])
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset)
 
 
       await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.02'))  

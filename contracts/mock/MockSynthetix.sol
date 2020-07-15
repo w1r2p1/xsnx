@@ -29,12 +29,13 @@ contract MockSynthetix is MockERC20 {
 
     }
 
+    event Debts(uint currentDebt, uint futureDebt);
     function issueMaxSynths() external {
-        uint rewardBal = rewardEscrow.balanceOf(msg.sender);
-        uint snxVal = (balanceOf(msg.sender).add(rewardBal)).mul(snxPrice).div(DEC_18); // how to include role of escrowed?
+        uint escrowBal = rewardEscrow.balanceOf(msg.sender);
+        uint snxVal = (balanceOf(msg.sender).add(escrowBal)).mul(snxPrice).div(DEC_18); // how to include role of escrowed?
         uint currentDebt = accountDebt[msg.sender];
         uint futureDebt = snxVal.mul(targetRatio()).div(DEC_18); // 10e18 * 1.25e17 / 1e18  = 
-        
+        emit Debts(currentDebt, futureDebt);
         if(currentDebt >= futureDebt) return;
         uint susdToSend = futureDebt.sub(currentDebt);
         IERC20(susdAddress).transfer(msg.sender, susdToSend);
@@ -45,7 +46,10 @@ contract MockSynthetix is MockERC20 {
         return accountDebt[issuer];
     }
     
+    event DebtBurn(uint val);
     function burnSynths(uint amount) external {
+        emit DebtBurn(amount);
+        IERC20(susdAddress).transferFrom(msg.sender, address(this), amount);
         accountDebt[msg.sender] = accountDebt[msg.sender].sub(amount);
     }
 

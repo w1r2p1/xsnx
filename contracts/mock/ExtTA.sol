@@ -71,6 +71,15 @@ contract ExtTA is TradeAccounting {
     function extGetIssuanceRatio() public view returns(uint){
         return getIssuanceRatio();
     }
+    function extGetContractEscrowedSnxValue() public view returns(uint){
+        return getContractEscrowedSnxValue();
+    }
+    function extCalculateHedgeAssetsValueInUsd() public view returns(uint){
+        return calculateHedgeAssetsValueInUsd();
+    }
+    function extCalculateAssetChangesForRebalanceToHedge() public view returns(uint, uint){
+        return calculateAssetChangesForRebalanceToHedge();
+    }
 
 
 }

@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "synthetix/contracts/interfaces/IFeePool.sol";
 
 import "./TradeAccounting.sol";
-import "./Whitelist.sol";
 import "./helpers/Pausable.sol";
 
 import "./interface/IRebalancingSetIssuanceModule.sol";
@@ -30,14 +29,16 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     uint256 private constant PERCENT = 100;
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant BREATHING_PERIOD = 4 hours;
+    uint256 private constant LIQUIDATION_WAIT_PERIOD = 6 weeks;
 
     TradeAccounting private tradeAccounting;
     IAddressResolver private addressResolver;
     IRebalancingSetIssuanceModule private rebalancingModule;
 
-    uint256 public feeDivisor;
     uint256 public withdrawableEthFees;
     uint256 public withdrawableSusdFees;
+
+    uint256 public lastStakedTimestamp;
 
     event Mint(
         address indexed user,
@@ -54,29 +55,43 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     );
     event RebalanceToSnx(uint256 timestamp, uint256 setSold);
     event RebalanceToHedge(uint256 timestamp, uint256 snxSold);
-    event WithdrawFees(uint256 ethAmount, uint susdAmount);
+    event WithdrawFees(uint256 ethAmount, uint256 susdAmount);
 
-    constructor(address payable _tradeAccountingAddress, address _setAddress)
-        public
-        ERC20Detailed("xSNX", "xSNXa", 18)
-    {
+    struct FeeDivisors {
+        uint256 mintFee; // not charged on mintWithSnx
+        uint256 burnFee;
+        uint256 claimFee;
+    }
+
+    FeeDivisors public feeDivisors;
+
+    constructor(
+        address payable _tradeAccountingAddress,
+        address _setAddress,
+        address _snxAddress,
+        address _susdAddress
+    ) public ERC20Detailed("xSNX", "xSNXa", 18) {
         tradeAccounting = TradeAccounting(_tradeAccountingAddress);
         setAddress = _setAddress;
+        snxAddress = _snxAddress;
+        susdAddress = _susdAddress;
     }
 
     /* ========================================================================================= */
     /*                                     Investor-facing                                       */
     /* ========================================================================================= */
+
     /*
      * @notice Mint new xSNX tokens from the contract by sending ETH
      * @dev Exchanges ETH for SNX
      * @dev Min rate ETH/SNX sourced from Kyber in JS
-     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price
+     * @dev: Calculates overall fund NAV in ETH terms, using implicit
+     * ETH/SNX price from Kyber exchange
      * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
      */
     function mint(uint256 minRate) external payable whenNotPaused {
         require(msg.value > 0, "Must send ETH");
-        uint256 fee = _administerFee(msg.value);
+        uint256 fee = _administerFee(msg.value, feeDivisors.mintFee);
         uint256 ethUsedForSnx = msg.value.sub(fee);
         uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
 
@@ -95,12 +110,18 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         return super._mint(msg.sender, mintAmount);
     }
 
+    /*
+     * @notice Mint new xSNX tokens from the contract by sending SNX
+     * @notice Won't run without ERC20 approval
+     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price (via SNX oracle)
+     * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
+     */
     function mintWithSnx(uint256 snxAmount) external whenNotPaused {
         require(snxAmount > 0, "Must send SNX");
         uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
         IERC20(snxAddress).transferFrom(msg.sender, address(this), snxAmount);
 
-        uint mintAmount = tradeAccounting.calculateTokensToMintWithSnx(
+        uint256 mintAmount = tradeAccounting.calculateTokensToMintWithSnx(
             snxBalanceBefore,
             snxAmount,
             totalSupply()
@@ -115,7 +136,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @dev Checks if ETH reserve is sufficient to settle redeem obligation
      * @dev Will only redeem if ETH reserve is sufficient
      */
-    function burn(uint256 tokensToRedeem) external whenNotPaused {
+    function burn(uint256 tokensToRedeem) external {
         require(tokensToRedeem > 0, "Must burn tokens");
         require(
             balanceOf(msg.sender) >= tokensToRedeem,
@@ -132,7 +153,9 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             "Redeem amount exceeds available liquidity"
         );
 
-        uint256 valueToSend = valueToRedeem.sub(_administerFee(valueToRedeem));
+        uint256 valueToSend = valueToRedeem.sub(
+            _administerFee(valueToRedeem, feeDivisors.burnFee)
+        );
         super._burn(msg.sender, tokensToRedeem);
         emit Burn(msg.sender, block.timestamp, tokensToRedeem, valueToSend);
 
@@ -145,13 +168,13 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /* ========================================================================================= */
 
     /*
-     * @notice Hedge strategy management function callable by anyone
-     * @notice Caller is rewarded with 1% of issued synths
+     * @notice Hedge strategy management function callable by admin
      * @dev Issues max synths on Synthetix
      * @dev Exchanges sUSD for Set and ETH in terms defined by tradeAccounting.ETH_TARGET
-     * @param minRates kyber.getExpectedRate([susd=>eth, susd>currentSetAsset])
+     * @param kyber.getExpectedRate([susd=>eth, susd>currentSetAsset])
+     * @param getAssetCurrentlyActiveInSet()
      */
-    function hedge(uint256[] calldata minRates)
+    function hedge(uint256[] calldata minRates, address activeAsset)
         external
         onlyOwner
         whenNotPaused
@@ -164,7 +187,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
                 susdBal
             );
             _allocateToEth(ethAllocation, minRates[0]);
-            _issueMaxSet(minRates[1]);
+            _issueMaxSet(minRates[1], activeAsset);
         }
     }
 
@@ -173,6 +196,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     }
 
     function _stake() private {
+        lastStakedTimestamp = block.timestamp;
         ISynthetix(addressResolver.getAddress(synthetixName)).issueMaxSynths();
     }
 
@@ -203,7 +227,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
 
         feePool.claimFees();
         withdrawableSusdFees = withdrawableSusdFees.add(
-            getSusdBalance().div(PERCENT)
+            getSusdBalance().div(feeDivisors.claimFee)
         );
         _swapTokenToEther(susdAddress, getSusdBalance(), minRates[1]);
     }
@@ -238,18 +262,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         );
     }
 
-    function _getExpectedRate(
-        address fromToken,
-        address toToken,
-        uint256 amount
-    ) private returns (uint256 minRate) {
-        (, minRate) = tradeAccounting.getExpectedRate(
-            fromToken,
-            toToken,
-            amount
-        );
-    }
-
     /* ========================================================================================= */
     /*                                      Rebalances                                           */
     /* ========================================================================================= */
@@ -257,7 +269,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*
      * @notice Called when hedge assets value meaningfully exceeds debt liabilities
      * @dev Hedge assets (Set + ETH) > liabilities (debt) by more than rebalance threshold
-     * @param: minRate: kyber.getExpectedRate
+     * @param: minRate: kyber.getExpectedRate (currentSetAsset => snx)
      * @param: setToSell: tradeAccounting.getRebalanceTowardsSnxUtils()
      * @param: currentSetAsset: tradeAccounting.getRebalanceTowardsSnxUtils()
      */
@@ -286,17 +298,17 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*
      * @notice Called when debt value meaningfully exceeds value of hedge assets
      * @notice Allocates fully to ETH reserve
-     * @dev `Liabilities (debt) > assets (Set)` by more than rebalance threshold
-     * @param: minRates: kyber.getExpectedRate
+     * @dev `Liabilities (debt) > assets (Set + ETH)` by more than rebalance threshold
      * @param: totalSusdToBurn: tradeAccounting.getRebalanceTowardsHedgeUtils()
+     * @param: activeAsset: getAssetCurrentlyActiveInSet()
+     * @param: minRates: kyber.getExpectedRate [activeSetAsset => sUSD, snx => eth]
      * @param: snxToSell: tradeAccounting.getRebalanceTowardsHedgeUtils()
-     * @param: activeAsset: tradeAccounting.getRebalanceTowardsHedgeUtils()
      */
     function rebalanceTowardsHedge(
-        uint256[] calldata minRates,
         uint256 totalSusdToBurn,
-        uint256 snxToSell,
-        address activeAsset
+        address activeAsset,
+        uint256[] calldata minRates,
+        uint256 snxToSell
     ) external onlyOwner {
         require(
             tradeAccounting.isRebalanceTowardsHedgeRequired(),
@@ -315,20 +327,19 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*
      * @notice Called whenever ETH bal is less than (hedgeAssets / ETH_TARGET)
      * @dev Rebalances Set holdings to ETH holdings
+     * @param tradeAccounting.()
+     * @param getAssetCurrentlyActiveInSet()
      * @param kyber.getExpectedRate(currentSetAsset => ETH)
      */
-    function rebalanceSetToEth(uint256 _minRate)
-        external
-        onlyOwner
-        whenNotPaused
-    {
-        uint256 redemptionQuantity = tradeAccounting
-            .calculateAssetChangesForRebalanceSetToEth();
+    function rebalanceSetToEth(
+        uint256 redemptionQuantity,
+        address activeAsset,
+        uint256 minRate
+    ) external onlyOwner whenNotPaused {
         _redeemRebalancingSet(redemptionQuantity);
-
-        address activeAsset = getAssetCurrentlyActiveInSet();
-        uint256 activeAssetBalance = getActiveSetAssetBalance();
-        _swapTokenToEther(activeAsset, activeAssetBalance, _minRate);
+        
+        uint activeAssetBalance = getActiveSetAssetBalance();
+        _swapTokenToEther(activeAsset, activeAssetBalance, minRate);
     }
 
     function _unwindStakedPosition(
@@ -348,8 +359,11 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         _swapTokenToEther(snxAddress, snxToSell, minRates[1]);
     }
 
-    // partially or fully unwind
-    // shouldnt be called in normal course of mgmt
+    /*
+     * @notice Exit valve to reduce staked position in favor of liquid ETH
+     * @notice Unlikely to be called in the normal course of mgmt
+     * @dev: Sells Set for SetAsset => sells for sUSD => burns debt => sells SNX for ETH
+     */
     function unwindStakedPosition(
         uint256 totalSusdToBurn,
         address activeAsset,
@@ -364,6 +378,36 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         );
     }
 
+    /*
+     * @notice Emergency exit valve to reduce staked position in favor of liquid ETH
+     * in the event of operator failure/incapacitation
+     * @dev: Params will depend on current C-RATIO, i.e., may not immediately be able
+     * to liquidate all debt and SNX
+     * @dev: May be callable multiple times as SNX escrow vests
+     */
+    function liquidationUnwind(
+        uint256 totalSusdToBurn,
+        uint256[] calldata minRates,
+        uint256 snxToSell
+    ) external {
+        require(
+            lastStakedTimestamp.add(LIQUIDATION_WAIT_PERIOD) < block.timestamp,
+            "Liquidation not available"
+        );
+
+        address activeAsset = getAssetCurrentlyActiveInSet();
+        _unwindStakedPosition(
+            totalSusdToBurn,
+            activeAsset,
+            minRates,
+            snxToSell
+        );
+    }
+
+    /*
+     * @notice Unlock escrowed SNX rewards
+     * @notice Won't be called until at least a year after deployment
+     */
     function vest() public {
         IRewardEscrow rewardEscrow = IRewardEscrow(
             addressResolver.getAddress(rewardEscrowName)
@@ -379,6 +423,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*                                    Address Setters                                        */
     /* ========================================================================================= */
 
+    // pass ProxyAddressResolver
     function setAddressResolverAddress(address _addressResolver)
         public
         onlyOwner
@@ -386,13 +431,13 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         addressResolver = IAddressResolver(_addressResolver);
     }
 
-    function setSusdAddress(address _susdAddress) public onlyOwner {
-        susdAddress = _susdAddress;
-    }
+    // function setSusdAddress(address _susdAddress) public onlyOwner {
+    //     susdAddress = _susdAddress;
+    // }
 
-    function setSnxAddress(address _snxAddress) public onlyOwner {
-        snxAddress = _snxAddress;
-    }
+    // function setSnxAddress(address _snxAddress) public onlyOwner {
+    //     snxAddress = _snxAddress;
+    // }
 
     function setRebalancingSetIssuanceModuleAddress(address _rebalancingModule)
         public
@@ -405,11 +450,10 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*                                     Set Protocol                                          */
     /* ========================================================================================= */
 
-    function _issueMaxSet(uint256 _minRate) private {
+    function _issueMaxSet(uint256 _minRate, address _activeAsset) private {
         uint256 susdBal = getSusdBalance();
         if (susdBal > 0) {
-            address activeAsset = getAssetCurrentlyActiveInSet();
-            _swapTokenToToken(susdAddress, susdBal, activeAsset, _minRate);
+            _swapTokenToToken(susdAddress, susdBal, _activeAsset, _minRate);
             uint256 issuanceQuantity = tradeAccounting
                 .calculateSetIssuanceQuantity();
             rebalancingModule.issueRebalancingSet(
@@ -420,9 +464,15 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         }
     }
 
-    function _redeemSet(uint256 totalSusdToBurn) private {
+    event RedempQty(uint256 qty);
+    event SetBal(uint256 bal);
+
+    function _redeemSet(uint256 _totalSusdToBurn) private {
         uint256 redemptionQuantity = tradeAccounting
-            .calculateSetRedemptionQuantity(totalSusdToBurn);
+            .calculateSetRedemptionQuantity(_totalSusdToBurn);
+        emit RedempQty(redemptionQuantity);
+        uint256 setBalance = IERC20(setAddress).balanceOf(address(this));
+        emit SetBal(setBalance);
         _redeemRebalancingSet(redemptionQuantity);
     }
 
@@ -450,15 +500,24 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         return tradeAccounting.getSusdBalance();
     }
 
-    function _administerFee(uint256 value) private returns (uint256 fee) {
+    function _administerFee(uint256 value, uint256 feeDivisor)
+        private
+        returns (uint256 fee)
+    {
         if (!tradeAccounting.isWhitelisted(msg.sender)) {
             fee = value.div(feeDivisor);
             withdrawableEthFees = withdrawableEthFees.add(fee);
         }
     }
 
-    function setFee(uint256 _feeDivisor) public onlyOwner {
-        feeDivisor = _feeDivisor;
+    function setFeeDivisors(
+        uint256 _mintFeeDivisor,
+        uint256 _burnFeeDivisor,
+        uint256 _claimFeeDivisor
+    ) public onlyOwner {
+        feeDivisors.mintFee = _mintFeeDivisor;
+        feeDivisors.burnFee = _burnFeeDivisor;
+        feeDivisors.claimFee = _claimFeeDivisor;
     }
 
     function withdrawFees() public onlyOwner {

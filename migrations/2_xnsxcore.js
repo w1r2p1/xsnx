@@ -89,7 +89,7 @@ module.exports = async function (deployer, network, accounts) {
                                                 MockRebalancingModule,
                                                 setToken.address,
                                               )
-                                              .then((rebalancingModule) => {
+                                              .then(async(rebalancingModule) => {
                                                 const synthSymbols = [
                                                   'sETH',
                                                   'sUSD',
@@ -100,6 +100,7 @@ module.exports = async function (deployer, network, accounts) {
                                                   weth.address,
                                                   usdc.address,
                                                 ]
+                                                await rebalancingModule.setWethAddress(weth.address);
                                                 return deployer
                                                   .deploy(
                                                     ExtTradeAccounting,
@@ -115,10 +116,24 @@ module.exports = async function (deployer, network, accounts) {
                                                           ExtXCore,
                                                           tradeAccounting.address,
                                                           setToken.address,
+                                                          synthetix.address,
+                                                          susd.address
                                                         )
                                                         .then(async (xsnx) => {
                                                           console.log(
                                                             'xsnx deployed',
+                                                          )
+                                                          await xsnx.approveMock(rebalancingModule.address, weth.address);
+                                                          console.log(
+                                                            'xsnx: weth approved on rebalance module *mock purposes only*',
+                                                          )
+                                                          await xsnx.approveMock(rebalancingModule.address, setToken.address);
+                                                          console.log(
+                                                            'xsnx: set token approved on rebalance module *mock purposes only*',
+                                                          )
+                                                          await xsnx.approveMock(synthetix.address, susd.address);
+                                                          console.log(
+                                                            'xsnx: susd approved on synthetix *mock purposes only*',
                                                           )
                                                           await xsnx.setAddressResolverAddress(
                                                             addressResolver.address,
@@ -126,18 +141,18 @@ module.exports = async function (deployer, network, accounts) {
                                                           console.log(
                                                             'xsnx: address resolver set',
                                                           )
-                                                          await xsnx.setSusdAddress(
-                                                            susd.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: susd address set',
-                                                          )
-                                                          await xsnx.setSnxAddress(
-                                                            synthetix.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: snx address set',
-                                                          )
+                                                          // await xsnx.setSusdAddress(
+                                                          //   susd.address,
+                                                          // )
+                                                          // console.log(
+                                                          //   'xsnx: susd address set',
+                                                          // )
+                                                          // await xsnx.setSnxAddress(
+                                                          //   synthetix.address,
+                                                          // )
+                                                          // console.log(
+                                                          //   'xsnx: snx address set',
+                                                          // )
                                                           await xsnx.setRebalancingSetIssuanceModuleAddress(
                                                             rebalancingModule.address,
                                                           )
@@ -174,11 +189,13 @@ module.exports = async function (deployer, network, accounts) {
                                                             susd.address,
                                                           )
     
-                                                          await xsnx.setFee(
-                                                            '286',
+                                                          await xsnx.setFeeDivisors(
+                                                            '400',
+                                                            '400',
+                                                            '40'
                                                           )
                                                           console.log(
-                                                            'xsnx: fee divisor set',
+                                                            'xsnx: fee divisors set',
                                                           )
 
                                                           await tradeAccounting.setCallerAddress(
@@ -317,7 +334,7 @@ module.exports = async function (deployer, network, accounts) {
             await xsnx.approveSetTransferProxy(SET_ASSET_2, SET_TRANSFER_PROXY)
             console.log('xsnx: set asset 2 => transfer proxy approve')
 
-            await xsnx.setFee('286')
+            await xsnx.setFeeDivisors('400', '400', '40')
             console.log('xsnx: fee divisor set')
 
             await tradeAccounting.setCallerAddress(xsnx.address)

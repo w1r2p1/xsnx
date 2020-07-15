@@ -55,9 +55,9 @@ contract('xSNXCore: Minting', async (accounts) => {
       const totalSupply = await xsnx.totalSupply()
       const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
 
-      const feeDivisor = await xsnx.feeDivisor();
+      const feeDivisor = await xsnx.feeDivisors();
       const snxAmountAcquiredExFee = web3.utils.toWei('10')
-      const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisor))
+      const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisor.mintFee))
       const snxAcquired = bn(snxAmountAcquiredExFee).sub(fee)
 
       await synthetix.transfer(xsnx.address, snxAcquired)
@@ -153,13 +153,24 @@ contract('xSNXCore: Minting', async (accounts) => {
 
     it('should charge an ETH fee on mint equal to fee divisor', async () => {
       const withdrawableFeesBefore = await xsnx.withdrawableEthFees()
-      const feeDivisor = await xsnx.feeDivisor()
+      const feeDivisors = await xsnx.feeDivisors()
       await xsnx.mint(0, { value: ethValue })
       const withdrawableFeesAfter = await xsnx.withdrawableEthFees()
       assertBNEqual(
         withdrawableFeesAfter.sub(withdrawableFeesBefore),
-        bn(ethValue).div(bn(feeDivisor)),
+        bn(ethValue).div(bn(feeDivisors.mintFee)),
       )
+    })
+
+    it('should issue xSNX tokens when buying with SNX', async() => {
+      const amount = web3.utils.toWei('10')
+      await synthetix.transfer(account1, amount)
+      await synthetix.approve(xsnx.address, amount, { from: account1 });
+      const xsnxBalBefore = await xsnx.balanceOf(account1)
+      
+      await xsnx.mintWithSnx(amount, { from: account1 })
+      const xsnxBalAfter = await xsnx.balanceOf(account1)
+      assertBNEqual(xsnxBalAfter.gt(xsnxBalBefore), true)
     })
   })
 
@@ -177,7 +188,8 @@ contract('xSNXCore: Minting', async (accounts) => {
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       
       await xsnx.mint(0, { value: web3.utils.toWei('0.01')})
-      await xsnx.hedge(['0', '0'])
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset)
       const {
         weiPerOneSnx,
         snxBalanceOwned,
@@ -212,7 +224,8 @@ contract('xSNXCore: Minting', async (accounts) => {
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      await xsnx.hedge(['0', '0'])
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset)
 
       const {
         weiPerOneSnx,
@@ -262,53 +275,53 @@ contract('xSNXCore: Minting', async (accounts) => {
     })
   })
 
-  // describe('Burning tokens on redemption', async () => {
-  //   it('should send the correct amount of ETH based on tokens burned', async () => {
-  //     await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
-  //     await web3.eth.sendTransaction({
-  //       from: deployerAccount,
-  //       value: web3.utils.toWei('1'),
-  //       to: kyberProxy.address,
-  //     })
-  //     await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
-  //     await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
-  //     await synthetix.transfer(kyberProxy.address, web3.utils.toWei('500'))
-  //     await xsnx.mint(0, { value: web3.utils.toWei('0.01'), from: account1 })
-  //     const account1Bal = await xsnx.balanceOf(account1)
+  describe('Burning tokens on redemption', async () => {
+    it('should send the correct amount of ETH based on tokens burned', async () => {
+      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        value: web3.utils.toWei('1'),
+        to: kyberProxy.address,
+      })
+      await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
+      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
+      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('500'))
+      await xsnx.mint(0, { value: web3.utils.toWei('0.01'), from: account1 })
+      const account1Bal = await xsnx.balanceOf(account1)
 
-  //     const ethBalBefore = await web3.eth.getBalance(account1)
-  //     const totalSupply = await xsnx.totalSupply()
-  //     const tokensToRedeem = bn(account1Bal).div(bn(100))
+      const ethBalBefore = await web3.eth.getBalance(account1)
+      const totalSupply = await xsnx.totalSupply()
+      const tokensToRedeem = bn(account1Bal).div(bn(100))
 
-  //     const {
-  //       weiPerOneSnx,
-  //       snxBalanceOwned,
-  //       contractDebtValue,
-  //     } = await getCalculateRedeemNavInputs()
-  //     const pricePerToken = await tradeAccounting.extCalculateRedeemTokenPrice(
-  //       totalSupply,
-  //       snxBalanceOwned,
-  //       contractDebtValue,
-  //     )
-  //     let valueToRedeem = bn(pricePerToken).mul(tokensToRedeem).div(DEC_18)
-  //     const feeDivisor = await xsnx.feeDivisor()
-  //     const fee = bn(valueToRedeem).div(bn(feeDivisor))
-  //     valueToRedeem = valueToRedeem.sub(fee)
+      const {
+        weiPerOneSnx,
+        snxBalanceOwned,
+        contractDebtValue,
+      } = await getCalculateRedeemNavInputs()
+      const pricePerToken = await tradeAccounting.extCalculateRedeemTokenPrice(
+        totalSupply,
+        snxBalanceOwned,
+        contractDebtValue,
+      )
+      let valueToRedeem = bn(pricePerToken).mul(tokensToRedeem).div(DEC_18)
+      const feeDivisors = await xsnx.feeDivisors()
+      const fee = bn(valueToRedeem).div(bn(feeDivisors.burnFee))
+      valueToRedeem = valueToRedeem.sub(fee)
 
-  //     await xsnx.burn(tokensToRedeem)
+      await xsnx.burn(tokensToRedeem)
 
-  //     // setTimeout is a hack to account for this truffle bug
-  //     // https://github.com/trufflesuite/ganache-cli/issues/7
-  //     setTimeout(async () => {
-  //       const ethBalAfter = await web3.eth.getBalance(account1)
-  //       console.log('ethBalBefore', ethBalBefore.toString())
-  //       console.log('ethBalAfter', ethBalAfter.toString())
-  //       console.log('valueToRedeem', valueToRedeem.toString())
+      // setTimeout is a hack to account for this truffle bug
+      // https://github.com/trufflesuite/ganache-cli/issues/7
+      setTimeout(async () => {
+        const ethBalAfter = await web3.eth.getBalance(account1)
+        console.log('ethBalBefore', ethBalBefore.toString())
+        console.log('ethBalAfter', ethBalAfter.toString())
+        console.log('valueToRedeem', valueToRedeem.toString())
 
-  //       assertBNEqual(bn(ethBalBefore).add(valueToRedeem), bn(ethBalAfter))
-  //     }, 2000)
-  //   })
-  // })
+        assertBNEqual(bn(ethBalBefore).add(valueToRedeem), bn(ethBalAfter))
+      }, 2000)
+    })
+  })
 })
 
 const getWeiPerOneSnxOnRedemption = async () => {

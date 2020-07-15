@@ -44,14 +44,25 @@ contract MockKyberProxy {
     }
     function swapTokenToEther(ERC20 token, uint tokenQty, uint minRate) external payable returns(uint) {
         if(token == ERC20(susdAddress)){
+            IERC20(susdAddress).transferFrom(msg.sender, address(this), tokenQty);
             msg.sender.transfer(tokenQty.div(ethUsd));
+        }
+        if(token == ERC20(snxAddress)){
+            IERC20(snxAddress).transferFrom(msg.sender, address(this), tokenQty);
+            msg.sender.transfer(tokenQty.div(ethSnx));
+        }
+        if(token == ERC20(wethAddress)){
+            IERC20(wethAddress).transferFrom(msg.sender, address(this), tokenQty);
+            msg.sender.transfer(tokenQty);
         }
     }
     function swapTokenToToken(ERC20 src, uint srcAmount, ERC20 dest, uint minConversionRate) public returns(uint){
         if(src == ERC20(wethAddress) && dest == ERC20(susdAddress)){
+            IERC20(wethAddress).transferFrom(msg.sender, address(this), srcAmount);
             IERC20(susdAddress).transfer(msg.sender, srcAmount.mul(ethUsd));
         }
         if(src == ERC20(susdAddress) && dest == ERC20(wethAddress)){
+            IERC20(susdAddress).transferFrom(msg.sender, address(this), srcAmount);
             IERC20(wethAddress).transfer(msg.sender, srcAmount.div(ethUsd));
         }
 
