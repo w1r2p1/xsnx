@@ -27,41 +27,33 @@ contract('xSNXCore: Unwinds', async (accounts) => {
     exchangeRates = await MockExchangeRates.deployed()
   })
 
-  describe('Rebalance Set to ETH', async () => {
-    it('should be able to rebalance Set to ETH when necessary', async () => {
+  describe('Rebalance towards SNX', async () => {
+    it('should be able to rebalance towards SNX when necessary', async () => {
       await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
         value: web3.utils.toWei('1'),
         to: kyberProxy.address,
       })
-      await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
+      await susd.transfer(synthetix.address, web3.utils.toWei('500'))
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
-
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await xsnx.hedge(['0', '0'], activeAsset)
+      
+      await setToken.transfer(xsnx.address, web3.utils.toWei('0.005'))
 
-      const setBalance = await setToken.balanceOf(xsnx.address)
-      const ethBalanceBefore = await tradeAccounting.getEthBalance()
-
-      await setToken.transfer(xsnx.address, bn(setBalance).div(bn(10)))
-
-      const setHoldingsBefore = await tradeAccounting.getSetHoldingsValueInWei()
-
-      // this should fail if rebalance not necessary
-      const setToSell = await tradeAccounting.calculateSetToSellForRebalanceSetToEth()
-      assert(true)
-      const activeAssetBalance = await tradeAccounting.getActiveSetAssetBalance()
-
-      await xsnx.rebalanceSetToEth(setToSell, activeAsset, '0')
-
-      await truffleAssert.reverts(
-        tradeAccounting.calculateSetToSellForRebalanceSetToEth(),
-        "Rebalance not necessary"
-      )
+      const isRequired = await tradeAccounting.isRebalanceTowardsSnxRequired()
+      assert.equal(isRequired, true)
+      
+      const rebalanceUtils = await tradeAccounting.getRebalanceTowardsSnxUtils()
+      
+      await xsnx.rebalanceTowardsSnx('0', rebalanceUtils[0], rebalanceUtils[1])
+     
+      const isRequiredAfter = await tradeAccounting.isRebalanceTowardsSnxRequired()
+      assert.equal(isRequiredAfter, false)
     })
   })
 })

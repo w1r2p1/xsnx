@@ -28,230 +28,231 @@ const DEPLOY_TO_NETWORK = 'kovan'
 
 module.exports = async function (deployer, network, accounts) {
   if (network === 'development') {
-    return deployer
-      .deploy(MockFeePool)
-      .then((feePool) => {
-        return deployer.deploy(MockExchangeRates).then((exchangeRates) => {
-          return deployer.deploy(MockRewardEscrow).then((rewardEscrow) => {
-            return deployer
-              .deploy(MockSynthetixState)
-              .then((synthetixState) => {
-                return deployer
-                  .deploy(MockSynthetix)
-                  .then((synthetix) => {
-                    synthetix.setRewardEscrowAddress(rewardEscrow.address);
-                    return deployer
-                      .deploy(
-                        MockAddressResolver,
-                        exchangeRates.address,
-                        feePool.address,
-                        rewardEscrow.address,
-                        synthetixState.address,
-                        synthetix.address,
-                      )
-                      .then(async (addressResolver) => {
-                        return deployer.deploy(MockWETH).then((weth) => {
-                          return deployer.deploy(MockUSDC).then((usdc) => {
-                            return deployer
-                              .deploy(
-                                MockCollateralSet,
-                                [weth.address, usdc.address],
-                                weth.address,
-                              )
-                              .then((collateralSetToken) => {
-                                return deployer
-                                  .deploy(MockSUSD)
-                                  .then(async(susd) => {
-                                    await synthetix.setSusdAddress(susd.address)
-                                    console.log('susd address set on mock synthetix')
+    return deployer.deploy(MockFeePool).then((feePool) => {
+      return deployer.deploy(MockExchangeRates).then((exchangeRates) => {
+        return deployer.deploy(MockRewardEscrow).then((rewardEscrow) => {
+          return deployer.deploy(MockSynthetixState).then((synthetixState) => {
+            return deployer.deploy(MockSynthetix).then((synthetix) => {
+              synthetix.setRewardEscrowAddress(rewardEscrow.address)
+              return deployer
+                .deploy(
+                  MockAddressResolver,
+                  exchangeRates.address,
+                  feePool.address,
+                  rewardEscrow.address,
+                  synthetixState.address,
+                  synthetix.address,
+                )
+                .then(async (addressResolver) => {
+                  return deployer.deploy(MockWETH).then((weth) => {
+                    return deployer.deploy(MockUSDC).then((usdc) => {
+                      return deployer
+                        .deploy(
+                          MockCollateralSet,
+                          [weth.address, usdc.address],
+                          weth.address,
+                        )
+                        .then((collateralSetToken) => {
+                          return deployer
+                            .deploy(MockSUSD)
+                            .then(async (susd) => {
+                              await synthetix.setSusdAddress(susd.address)
+                              console.log('susd address set on mock synthetix')
 
-                                    return deployer
-                                      .deploy(
-                                        MockSetToken,
-                                        [weth.address, usdc.address],
-                                        collateralSetToken.address,
-                                      )
-                                      .then((setToken) => {
-                                        const ETH_ADDRESS =
-                                          '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
-                                        return deployer
-                                          .deploy(
-                                            MockKyberProxy,
-                                            ETH_ADDRESS,
-                                            synthetix.address,
-                                            susd.address,
+                              return deployer
+                                .deploy(
+                                  MockSetToken,
+                                  [weth.address, usdc.address],
+                                  collateralSetToken.address,
+                                )
+                                .then((setToken) => {
+                                  const ETH_ADDRESS =
+                                    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+                                  return deployer
+                                    .deploy(
+                                      MockKyberProxy,
+                                      ETH_ADDRESS,
+                                      synthetix.address,
+                                      susd.address,
+                                      weth.address,
+                                      usdc.address,
+                                    )
+                                    .then((kyberProxy) => {
+                                      return deployer
+                                        .deploy(
+                                          MockRebalancingModule,
+                                          setToken.address,
+                                        )
+                                        .then(async (rebalancingModule) => {
+                                          const synthSymbols = [
+                                            'sETH',
+                                            'sUSD',
+                                          ].map((symbol) =>
+                                            web3.utils.fromAscii(symbol),
+                                          )
+                                          const setComponentAddresses = [
                                             weth.address,
                                             usdc.address,
+                                          ]
+                                          await rebalancingModule.setWethAddress(
+                                            weth.address,
                                           )
-                                          .then((kyberProxy) => {
-                                            return deployer
-                                              .deploy(
-                                                MockRebalancingModule,
-                                                setToken.address,
-                                              )
-                                              .then(async(rebalancingModule) => {
-                                                const synthSymbols = [
-                                                  'sETH',
-                                                  'sUSD',
-                                                ].map((symbol) =>
-                                                  web3.utils.fromAscii(symbol),
+                                          return deployer
+                                            .deploy(
+                                              ExtTradeAccounting,
+                                              setToken.address,
+                                              kyberProxy.address,
+                                              synthetix.address,
+                                              susd.address,
+                                              synthSymbols,
+                                              setComponentAddresses,
+                                            )
+                                            .then(async (tradeAccounting) => {
+                                              return deployer
+                                                .deploy(
+                                                  ExtXCore,
+                                                  tradeAccounting.address,
+                                                  setToken.address,
+                                                  synthetix.address,
+                                                  susd.address,
                                                 )
-                                                const setComponentAddresses = [
-                                                  weth.address,
-                                                  usdc.address,
-                                                ]
-                                                await rebalancingModule.setWethAddress(weth.address);
-                                                return deployer
-                                                  .deploy(
-                                                    ExtTradeAccounting,
+                                                .then(async (xsnx) => {
+                                                  console.log('xsnx deployed')
+                                                  await xsnx.approveMock(
+                                                    rebalancingModule.address,
+                                                    weth.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: weth approved on rebalance module *mock purposes only*',
+                                                  )
+                                                  await xsnx.approveMock(
+                                                    rebalancingModule.address,
                                                     setToken.address,
-                                                    kyberProxy.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: set token approved on rebalance module *mock purposes only*',
+                                                  )
+                                                  await xsnx.approveMock(
                                                     synthetix.address,
                                                     susd.address,
-                                                    synthSymbols,
-                                                    setComponentAddresses,
                                                   )
-                                                  .then(
-                                                    async (tradeAccounting) => {
-                                                      return deployer
-                                                        .deploy(
-                                                          ExtXCore,
-                                                          tradeAccounting.address,
-                                                          setToken.address,
-                                                          synthetix.address,
-                                                          susd.address
-                                                        )
-                                                        .then(async (xsnx) => {
-                                                          console.log(
-                                                            'xsnx deployed',
-                                                          )
-                                                          await xsnx.approveMock(rebalancingModule.address, weth.address);
-                                                          console.log(
-                                                            'xsnx: weth approved on rebalance module *mock purposes only*',
-                                                          )
-                                                          await xsnx.approveMock(rebalancingModule.address, setToken.address);
-                                                          console.log(
-                                                            'xsnx: set token approved on rebalance module *mock purposes only*',
-                                                          )
-                                                          await xsnx.approveMock(synthetix.address, susd.address);
-                                                          console.log(
-                                                            'xsnx: susd approved on synthetix *mock purposes only*',
-                                                          )
-                                                          await xsnx.setAddressResolverAddress(
-                                                            addressResolver.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: address resolver set',
-                                                          )
-                                                    
-                                                          await xsnx.setRebalancingSetIssuanceModuleAddress(
-                                                            rebalancingModule.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: rebalancing mod set',
-                                                          )
-                                                          await xsnx.approveTradeAccounting(
-                                                            susd.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: susd => tradeAccounting approve',
-                                                          )
-                                                          await xsnx.approveTradeAccounting(
-                                                            synthetix.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: snx => tradeAccounting approve',
-                                                          )
-                                                          await xsnx.approveTradeAccounting(
-                                                            weth.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: set asset 1 => tradeAccounting approve',
-                                                          )
-                                                          await xsnx.approveTradeAccounting(
-                                                            usdc.address,
-                                                          )
-                                                          console.log(
-                                                            'xsnx: set asset 2 => tradeAccounting approve',
-                                                          )
-
-                                                          // only testing
-                                                          await feePool.setSusdAddress(
-                                                            susd.address,
-                                                          )
-    
-                                                          await xsnx.setFeeDivisors(
-                                                            '400',
-                                                            '400',
-                                                            '40'
-                                                          )
-                                                          console.log(
-                                                            'xsnx: fee divisors set',
-                                                          )
-
-                                                          await tradeAccounting.setCallerAddress(
-                                                            xsnx.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: caller address set',
-                                                          )
-                                                          await tradeAccounting.setAddressResolverAddress(
-                                                            addressResolver.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: address resolver set',
-                                                          )
-
-                                                          await tradeAccounting.setSynthetixStateAddress()
-                                                          console.log(
-                                                            'ta: synth state set',
-                                                          )
-                                                          await tradeAccounting.setExchangeRatesAddress()
-                                                          console.log(
-                                                            'ta: exch rates set',
-                                                          )
-                                              
-                                                          await tradeAccounting.approveKyber(
-                                                            synthetix.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: approve kyber: snx',
-                                                          )
-                                                          await tradeAccounting.approveKyber(
-                                                            susd.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: approve kyber: susd',
-                                                          )
-                                                          await tradeAccounting.approveKyber(
-                                                            weth.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: approve kyber: set asset 1',
-                                                          )
-                                                          await tradeAccounting.approveKyber(
-                                                            usdc.address,
-                                                          )
-                                                          console.log(
-                                                            'ta: approve kyber: set asset 2',
-                                                          )
-                                                          // await xsnx.approveSetTransferProxy()
-                                                        })
-                                                    },
+                                                  console.log(
+                                                    'xsnx: susd approved on synthetix *mock purposes only*',
                                                   )
-                                              })
-                                          })
-                                      })
-                                  })
-                              })
-                          })
+                                                  await xsnx.setAddressResolverAddress(
+                                                    addressResolver.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: address resolver set',
+                                                  )
+
+                                                  await xsnx.setRebalancingSetIssuanceModuleAddress(
+                                                    rebalancingModule.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: rebalancing mod set',
+                                                  )
+                                                  await xsnx.approveTradeAccounting(
+                                                    susd.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: susd => tradeAccounting approve',
+                                                  )
+                                                  await xsnx.approveTradeAccounting(
+                                                    synthetix.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: snx => tradeAccounting approve',
+                                                  )
+                                                  await xsnx.approveTradeAccounting(
+                                                    weth.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: set asset 1 => tradeAccounting approve',
+                                                  )
+                                                  await xsnx.approveTradeAccounting(
+                                                    usdc.address,
+                                                  )
+                                                  console.log(
+                                                    'xsnx: set asset 2 => tradeAccounting approve',
+                                                  )
+
+                                                  // only testing
+                                                  await feePool.setSusdAddress(
+                                                    susd.address,
+                                                  )
+
+                                                  await xsnx.setFeeDivisors(
+                                                    '400',
+                                                    '400',
+                                                    '40',
+                                                  )
+                                                  console.log(
+                                                    'xsnx: fee divisors set',
+                                                  )
+
+                                                  await tradeAccounting.setCallerAddress(
+                                                    xsnx.address,
+                                                  )
+                                                  console.log(
+                                                    'ta: caller address set',
+                                                  )
+                                                  await tradeAccounting.setAddressResolverAddress(
+                                                    addressResolver.address,
+                                                  )
+                                                  console.log(
+                                                    'ta: address resolver set',
+                                                  )
+
+                                                  await tradeAccounting.setSynthetixStateAddress()
+                                                  console.log(
+                                                    'ta: synth state set',
+                                                  )
+                                                  await tradeAccounting.setExchangeRatesAddress()
+                                                  console.log(
+                                                    'ta: exch rates set',
+                                                  )
+
+                                                  await tradeAccounting.approveKyber(
+                                                    synthetix.address,
+                                                  )
+                                                  console.log(
+                                                    'ta: approve kyber: snx',
+                                                  )
+                                                  await tradeAccounting.approveKyber(
+                                                    susd.address,
+                                                  )
+                                                  console.log(
+                                                    'ta: approve kyber: susd',
+                                                  )
+                                                  await tradeAccounting.approveKyber(
+                                                    weth.address,
+                                                  )
+                                                  console.log(
+                                                    'ta: approve kyber: set asset 1',
+                                                  )
+                                                  await tradeAccounting.approveKyber(
+                                                    usdc.address,
+                                                  )
+                                                  console.log(
+                                                    'ta: approve kyber: set asset 2',
+                                                  )
+                                                  // await xsnx.approveSetTransferProxy()
+                                                })
+                                            })
+                                        })
+                                    })
+                                })
+                            })
                         })
-                      })
+                    })
                   })
-              })
+                })
+            })
           })
         })
       })
+    })
   }
   // ***********************************************************
 
@@ -281,20 +282,25 @@ module.exports = async function (deployer, network, accounts) {
       .deploy(
         TradeAccounting,
         SET_ADDRESS,
+        KYBER_PROXY,
+        SNX_ADDRESS,
+        SUSD_ADDRESS,
         SYNTH_SYMBOLS,
         SET_COMPONENT_ADDRESSES,
       )
       .then((tradeAccounting) => {
         return deployer
-          .deploy(xSNXCore, tradeAccounting.address, SET_ADDRESS)
+          .deploy(
+            xSNXCore,
+            tradeAccounting.address,
+            SET_ADDRESS,
+            SNX_ADDRESS,
+            SUSD_ADDRESS,
+          )
           .then(async (xsnx) => {
             console.log('xsnx deployed')
             await xsnx.setAddressResolverAddress(ADDRESS_RESOLVER)
             console.log('xsnx: address resolver set')
-            await xsnx.setSusdAddress(SUSD_ADDRESS)
-            console.log('xsnx: susd address set')
-            await xsnx.setSnxAddress(SNX_ADDRESS)
-            console.log('xsnx: snx address set')
             await xsnx.setRebalancingSetIssuanceModuleAddress(
               REBALANCING_MODULE,
             )
@@ -326,12 +332,6 @@ module.exports = async function (deployer, network, accounts) {
             console.log('ta: synth state set')
             await tradeAccounting.setExchangeRatesAddress()
             console.log('ta: exch rates set')
-            await tradeAccounting.setSnxAddress(SNX_ADDRESS)
-            console.log('ta: snx address set')
-            await tradeAccounting.setSusdAddress(SUSD_ADDRESS)
-            console.log('ta: susd address set')
-            await tradeAccounting.setKyberNetworkAddress(KYBER_PROXY)
-            console.log('ta: kyber proxy set')
 
             await tradeAccounting.approveKyber(SNX_ADDRESS)
             console.log('ta: approve kyber: snx')

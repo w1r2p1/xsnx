@@ -77,7 +77,7 @@ contract TradeAccounting is Whitelist {
     uint256 private constant ETH_TARGET = 4;
     uint256 private constant SLIPPAGE_RATE = 99;
     uint256 private constant MAX_UINT = 2**256 - 1;
-    uint256 private constant RATE_STALE_TIME = 1800; // half hour
+    uint256 private constant RATE_STALE_TIME = 3600;
     uint256 private constant REBALANCE_THRESHOLD = 105;
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
 
@@ -273,7 +273,7 @@ contract TradeAccounting is Whitelist {
         weiPerOneSnx = snxUsdPrice
             .mul(DEC_18)
             .div(ethUsdPrice)
-            .mul(SLIPPAGE_RATE)
+            .mul(SLIPPAGE_RATE) // used to better represent liquidation price as volume scales
             .div(PERCENT);
     }
 
@@ -424,8 +424,8 @@ contract TradeAccounting is Whitelist {
             .mul(103) // err on the high side
             .div(PERCENT);
 
-        uint256 ten = 10;
-        uint256 decimals = (ten**ERC20Detailed(currentSetAsset).decimals());
+        uint256 TEN = 10;
+        uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals());
         setAssetCollateralToSell = setAssetCollateralToSell.mul(decimals).div(
             DEC_18
         );
@@ -495,7 +495,7 @@ contract TradeAccounting is Whitelist {
     }
 
     // this returns the number of underlying tokens in the current Set asset
-    // e.g., the contract's Set holdings represent 10 WETH
+    // e.g., the contract's Set holdings are collateralized by 10.4 WETH
     function getSetCollateralTokens() internal view returns (uint256) {
         return
             getSetBalanceCollateral().mul(getBaseSetComponentUnits()).div(
@@ -558,13 +558,13 @@ contract TradeAccounting is Whitelist {
     }
 
     function getSnxPrice() internal view returns (uint256) {
-        (uint rate, uint time) = exchangeRates.rateAndUpdatedTime(snx);
+        (uint256 rate, uint256 time) = exchangeRates.rateAndUpdatedTime(snx);
         require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
         return rate;
     }
 
     function getSynthPrice(bytes32 synth) internal view returns (uint256) {
-        (uint rate, uint time) = exchangeRates.rateAndUpdatedTime(synth);
+        (uint256 rate, uint256 time) = exchangeRates.rateAndUpdatedTime(synth);
         require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
         return rate;
     }
@@ -642,12 +642,14 @@ contract TradeAccounting is Whitelist {
             );
     }
 
-    function calculateSusdToBurnToEclipseEscrowed(
-        uint256 issuanceRatio
-    ) public view returns (uint256) {
+    function calculateSusdToBurnToEclipseEscrowed(uint256 issuanceRatio)
+        public
+        view
+        returns (uint256)
+    {
         uint256 escrowedSnxValue = getContractEscrowedSnxValue();
         if (escrowedSnxValue == 0) return 0;
-        
+
         return escrowedSnxValue.mul(issuanceRatio).div(DEC_18);
     }
 
@@ -689,10 +691,9 @@ contract TradeAccounting is Whitelist {
             issuanceRatio
         );
 
+
             uint256 susdToBurnToEclipseEscrowed
-         = calculateSusdToBurnToEclipseEscrowed(
-            issuanceRatio
-        );
+         = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
         uint256 susdToBurnForRedemption = calculateSusdToBurnForRedemption(
             susdToBurnToFixRatio.add(susdToBurnToEclipseEscrowed),
             tokensToRedeem,
@@ -715,21 +716,18 @@ contract TradeAccounting is Whitelist {
         view
         returns (uint256 totalSusdToBurn, uint256 snxToSell)
     {
-        uint256 snxValueHeld = getContractSnxValue(); // 10e18 (1e18 escrowed)
-        uint256 debtValueInUsd = getContractDebtValue(); // 1.3e18
-        uint256 issuanceRatio = getIssuanceRatio(); // 1.25e17
+        uint256 snxValueHeld = getContractSnxValue();
+        uint256 debtValueInUsd = getContractDebtValue();
+        uint256 issuanceRatio = getIssuanceRatio();
 
         uint256 susdToBurnToFixRatio = calculateSusdToBurnToFixRatio(
             snxValueHeld,
             debtValueInUsd,
             issuanceRatio
-        ); // 0.05e18
-
+        );
 
             uint256 susdToBurnToEclipseEscrowed
-         = calculateSusdToBurnToEclipseEscrowed(
-            issuanceRatio
-        ); // 0.125e18
+         = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
 
         uint256 hedgeAssetsValueInUsd = calculateHedgeAssetsValueInUsd();
         uint256 valueToUnlockInUsd = debtValueInUsd.sub(hedgeAssetsValueInUsd);
@@ -861,7 +859,7 @@ contract TradeAccounting is Whitelist {
      * @notice Helper for `hedge` function
      * @dev Determines share of sUSD to allocate to ETH
      * @dev Implicitly determines Set allocation as well
-     * @param sUSD balance post minting
+     * @param susdBal: sUSD balance post minting
      */
     function getEthAllocationOnHedge(uint256 susdBal)
         public
@@ -890,8 +888,7 @@ contract TradeAccounting is Whitelist {
         }
     }
 
-    // for when eth bal is below eth target
-    // eth terms
+    // helper callable when eth bal is below eth target
     function calculateSetToSellForRebalanceSetToEth()
         public
         view
@@ -941,14 +938,6 @@ contract TradeAccounting is Whitelist {
     function setCallerAddress(address _caller) public onlyOwner {
         caller = _caller;
     }
-
-    // function setSnxAddress(address _snxAddress) public onlyOwner {
-    //     snxAddress = _snxAddress;
-    // }
-
-    // function setSusdAddress(address _susdAddress) public onlyOwner {
-    //     susdAddress = _susdAddress;
-    // }
 
     function setExchangeRatesAddress() public onlyOwner {
         address exchangeRatesAddress = addressResolver.getAddress(
