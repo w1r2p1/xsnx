@@ -21,18 +21,16 @@ contract MockKyberProxy {
         usdcAddress = _usdcAddress;
     }
 
-    uint ethSnx = 250;
+    uint ethSnx = 200;
     uint ethUsd = 200;
 
     function getExpectedRate(ERC20 src, ERC20 dest, uint srcQty) external view returns (uint expectedRate, uint slippageRate) {
-        // eth/usd = 200
-        // eth/snx = 250 
-        if(src == ERC20(ethAddress) && dest == ERC20(snxAddress)) return (250e18, 250e18);
+        if(src == ERC20(ethAddress) && dest == ERC20(snxAddress)) return (200e18, 200e18);
         if(src == ERC20(ethAddress) && dest == ERC20(susdAddress)) return (200e18, 200e18);
         if(src == ERC20(ethAddress) && dest == ERC20(wethAddress)) return (1e18, 1e18);
         if(src == ERC20(ethAddress) && dest == ERC20(usdcAddress)) return (200e18, 200e18);
 
-        if(src == ERC20(snxAddress) && dest == ERC20(ethAddress)) return (4e15, 4e15);
+        if(src == ERC20(snxAddress) && dest == ERC20(ethAddress)) return (5e15, 5e15);
         if(src == ERC20(susdAddress) && dest == ERC20(ethAddress)) return (5e15, 5e15);
         if(src == ERC20(susdAddress) && dest == ERC20(wethAddress)) return (5e15, 5e15);
         if(src == ERC20(susdAddress) && dest == ERC20(usdcAddress)) return (1e18, 1e18);
@@ -46,13 +44,28 @@ contract MockKyberProxy {
     }
     function swapTokenToEther(ERC20 token, uint tokenQty, uint minRate) external payable returns(uint) {
         if(token == ERC20(susdAddress)){
+            IERC20(susdAddress).transferFrom(msg.sender, address(this), tokenQty);
             msg.sender.transfer(tokenQty.div(ethUsd));
+        }
+        if(token == ERC20(snxAddress)){
+            IERC20(snxAddress).transferFrom(msg.sender, address(this), tokenQty);
+            msg.sender.transfer(tokenQty.div(ethSnx));
+        }
+        if(token == ERC20(wethAddress)){
+            IERC20(wethAddress).transferFrom(msg.sender, address(this), tokenQty);
+            msg.sender.transfer(tokenQty);
         }
     }
     function swapTokenToToken(ERC20 src, uint srcAmount, ERC20 dest, uint minConversionRate) public returns(uint){
         if(src == ERC20(wethAddress) && dest == ERC20(susdAddress)){
+            IERC20(wethAddress).transferFrom(msg.sender, address(this), srcAmount);
             IERC20(susdAddress).transfer(msg.sender, srcAmount.mul(ethUsd));
         }
+        if(src == ERC20(susdAddress) && dest == ERC20(wethAddress)){
+            IERC20(susdAddress).transferFrom(msg.sender, address(this), srcAmount);
+            IERC20(wethAddress).transfer(msg.sender, srcAmount.div(ethUsd));
+        }
+
     }
 
     function() external payable {

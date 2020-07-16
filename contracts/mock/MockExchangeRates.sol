@@ -5,27 +5,19 @@ contract MockExchangeRates {
     bytes32 susd = "sUSD";
     bytes32 seth = "sETH";
 
-    bool underCollat = false;
+    uint snxPrice = 1e18;
 
-    function toggleCollat() public {
-        underCollat = !underCollat;
-    }
-
-    function rateForCurrency(bytes32 currency) public view returns(uint){
+    function rateAndUpdatedTime(bytes32 currency) public view returns(uint, uint){
         if (currency == snx) {
-            if (underCollat) {
-                return 7e17; // $0.70
-            } else {
-                return 8e17; // $0.80
-            }
+            return (snxPrice, block.timestamp - 10);
         }
 
         if (currency == susd) {
-            return 1e18;
+            return (1e18, block.timestamp - 10);
         }
 
         if (currency == seth) {
-            return 200e18;
+            return (200e18, block.timestamp - 10);
         }
     }
 }

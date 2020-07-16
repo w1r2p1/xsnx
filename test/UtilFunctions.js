@@ -32,16 +32,6 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async () => {
       assert(true)
     })
 
-    it('should be able to set the sUSD address on xSNX', async () => {
-      await xsnx.setSusdAddress(susd.address)
-      assert(true)
-    })
-
-    it('should be able to set the SNX address on xSNX', async () => {
-      await xsnx.setSnxAddress(synthetix.address)
-      assert(true)
-    })
-
     it('should be able to set the rebalancing module address on xSNX', async () => {
       await xsnx.setRebalancingSetIssuanceModuleAddress(
         rebalancingModule.address,
@@ -59,23 +49,8 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async () => {
       assert(true)
     })
 
-    it('should be able to set the Kyber address on TradeAccounting', async () => {
-      await tradeAccounting.setKyberNetworkAddress(kyberProxy.address)
-      assert(true)
-    })
-
     it('should be able to set the xSNX address on TradeAccounting', async () => {
       await tradeAccounting.setCallerAddress(xsnx.address)
-      assert(true)
-    })
-
-    it('should be able to set the SNX address on TradeAccounting', async () => {
-      await tradeAccounting.setCallerAddress(synthetix.address)
-      assert(true)
-    })
-
-    it('should be able to set the sUSD address on TradeAccounting', async () => {
-      await tradeAccounting.setCallerAddress(susd.address)
       assert(true)
     })
 
