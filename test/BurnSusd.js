@@ -25,7 +25,6 @@ contract('xSNXCore: Burning sUSD calculations', async () => {
       const susdToEclipseEscrowed = await tradeAccounting.calculateSusdToBurnToEclipseEscrowed(
           issuanceRatio
       )
-      console.log('susdToEclipseEscrowed', susdToEclipseEscrowed.toString())
       assertBNEqual(susdToEclipseEscrowed, bn(escrowedSnxVal).mul(bn(issuanceRatio)).div(DEC_18))
     })
   })

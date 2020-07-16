@@ -1,4 +1,3 @@
-const { BN } = require('@openzeppelin/test-helpers')
 const migrationInputs = require('../util/migrationInputs')
 const ExtXCore = artifacts.require('ExtXC')
 const xSNXCore = artifacts.require('xSNXCore')

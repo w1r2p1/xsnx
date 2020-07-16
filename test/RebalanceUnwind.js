@@ -45,16 +45,11 @@ contract('xSNXCore: Unwinds', async (accounts) => {
       await xsnx.hedge(['0', '0'], activeAsset)
 
       const debtValueBefore = await tradeAccounting.extGetContractDebtValue() // usd terms
-      console.log('debtValueBefore', debtValueBefore.toString())
       const ethBalBefore = await tradeAccounting.getEthBalance()
-      console.log('ethBalBefore', ethBalBefore.toString())
       const snxBalanceBefore = await tradeAccounting.getSnxBalance()
-      console.log('snxBalanceBefore', snxBalanceBefore.toString())
 
       const someAmountDebt = bn(debtValueBefore).div(bn(2))
-      console.log('someAmountDebt', someAmountDebt.toString())
       const someAmountSnx = bn(snxBalanceBefore).div(bn(6))
-      console.log('someAmountSnx', someAmountSnx.toString())
 
       await xsnx.unwindStakedPosition(
         someAmountDebt,
@@ -63,13 +58,10 @@ contract('xSNXCore: Unwinds', async (accounts) => {
         someAmountSnx,
       )
       const hedgeAssetsValueUsd = await tradeAccounting.extCalculateHedgeAssetsValueInUsd()
-      console.log('hedgeAssetsValueUsd', hedgeAssetsValueUsd.toString())
 
       const debtValueAfter = await tradeAccounting.extGetContractDebtValue()
-      console.log('debtValueAfter', debtValueAfter.toString())
       const ethBalAfter = await tradeAccounting.getEthBalance()
       const snxBalanceAfter = await tradeAccounting.getSnxBalance()
-      console.log('snxBalanceAfter', snxBalanceAfter.toString())
 
       assertBNEqual(snxBalanceBefore.gt(snxBalanceAfter), true)
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)

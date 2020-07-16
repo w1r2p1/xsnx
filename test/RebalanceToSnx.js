@@ -11,7 +11,7 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 
-contract('xSNXCore: Unwinds', async (accounts) => {
+contract('xSNXCore: Rebalance to SNX', async (accounts) => {
   const [deployerAccount, account1] = accounts
 
   beforeEach(async () => {
@@ -42,7 +42,7 @@ contract('xSNXCore: Unwinds', async (accounts) => {
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await xsnx.hedge(['0', '0'], activeAsset)
-      
+
       await setToken.transfer(xsnx.address, web3.utils.toWei('0.005'))
 
       const isRequired = await tradeAccounting.isRebalanceTowardsSnxRequired()

@@ -11,7 +11,7 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 
-contract('xSNXCore: Unwinds', async (accounts) => {
+contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
   const [deployerAccount, account1] = accounts
 
   beforeEach(async () => {
