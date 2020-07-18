@@ -13,9 +13,9 @@ import "./helpers/Pausable.sol";
 import "./interface/IRebalancingSetIssuanceModule.sol";
 import "./interface/IKyberNetworkProxy.sol";
 
-
 contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
-    address private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address
+        private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address private susdAddress;
     address private setAddress;
     address private snxAddress;
@@ -92,19 +92,27 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      */
     function mint(uint256 minRate) external payable whenNotPaused {
         require(msg.value > 0, "Must send ETH");
+
         uint256 fee = _administerFee(msg.value, feeDivisors.mintFee);
-        uint256 ethUsedForSnx = msg.value.sub(fee);
+        uint256 ethContribution = msg.value.sub(fee);
         uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
 
-        tradeAccounting.swapEtherToToken.value(ethUsedForSnx)(
-            snxAddress,
-            minRate
-        );
+        uint256 totalSupply = totalSupply();
+        (bool allocateToEth, uint256 nonSnxAssetValue) = tradeAccounting
+            .getMintWithEthUtils(ethContribution, totalSupply);
+
+        if (!allocateToEth) {
+            tradeAccounting.swapEtherToToken.value(ethContribution)(
+                snxAddress,
+                minRate
+            );
+        }
 
         uint256 mintAmount = tradeAccounting.calculateTokensToMintWithEth(
             snxBalanceBefore,
-            ethUsedForSnx,
-            totalSupply()
+            ethContribution,
+            nonSnxAssetValue,
+            totalSupply
         );
 
         emit Mint(msg.sender, block.timestamp, msg.value, mintAmount, true);
@@ -501,8 +509,8 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
 
     /*
      * @notice Inverse of fee i.e., a fee divisor of 100 == 1%
-     * @notice Three fee types 
-     * @notice Mint fee never charged on mintWithSnx 
+     * @notice Three fee types
+     * @notice Mint fee never charged on mintWithSnx
      */
     function setFeeDivisors(
         uint256 _mintFeeDivisor,
