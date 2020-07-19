@@ -78,6 +78,9 @@ contract ExtTA is TradeAccounting {
     function extGetContractEscrowedSnxValue() public view returns(uint){
         return getContractEscrowedSnxValue();
     }
+    function extGetContractOwnedSnxValue() public view returns(uint){
+        return getContractOwnedSnxValue();
+    }
     function extCalculateHedgeAssetsValueInUsd() public view returns(uint){
         return calculateHedgeAssetsValueInUsd();
     }
@@ -87,6 +90,5 @@ contract ExtTA is TradeAccounting {
     function extETH_TARGET() public view returns(uint){
         return 4;
     }
-
 
 }

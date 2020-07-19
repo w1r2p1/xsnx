@@ -14,8 +14,7 @@ import "./interface/IRebalancingSetIssuanceModule.sol";
 import "./interface/IKyberNetworkProxy.sol";
 
 contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
-    address
-        private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address private susdAddress;
     address private setAddress;
     address private snxAddress;
@@ -85,8 +84,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @notice Mint new xSNX tokens from the contract by sending ETH
      * @dev Exchanges ETH for SNX
      * @dev Min rate ETH/SNX sourced from Kyber in JS
-     * @dev: Calculates overall fund NAV in ETH terms, using implicit
-     * ETH/SNX price from Kyber exchange
+     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price (via SNX oracle)
      * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
      * @param: minRate: kyber.getExpectedRate eth=>snx
      */
@@ -502,8 +500,10 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         returns (uint256 fee)
     {
         if (!tradeAccounting.isWhitelisted(msg.sender)) {
-            fee = value.div(feeDivisor);
-            withdrawableEthFees = withdrawableEthFees.add(fee);
+            if(feeDivisor > 0){
+                fee = value.div(feeDivisor);
+                withdrawableEthFees = withdrawableEthFees.add(fee);
+            }
         }
     }
 
@@ -552,7 +552,5 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         IERC20(tokenAddress).approve(transferProxy, MAX_UINT);
     }
 
-    function() external payable {
-        require(msg.sender == address(tradeAccounting), "Must be TA");
-    }
+    function() external payable {}
 }

@@ -73,11 +73,11 @@ contract TradeAccounting is Whitelist {
 
     uint256 private constant DEC_18 = 1e18;
     uint256 private constant PERCENT = 100;
-    uint256 private constant ETH_TARGET = 4;
+    uint256 private constant ETH_TARGET = 4; // targets 1/4th of hedge portfolio
     uint256 private constant SLIPPAGE_RATE = 99;
     uint256 private constant MAX_UINT = 2**256 - 1;
-    uint256 private constant RATE_STALE_TIME = 3600;
-    uint256 private constant REBALANCE_THRESHOLD = 105;
+    uint256 private constant RATE_STALE_TIME = 3600; // 1 hour
+    uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
 
     ISynthetix private synthetix;
@@ -256,7 +256,6 @@ contract TradeAccounting is Whitelist {
         uint256 snxTokenValueInWei = snxBalanceBefore.mul(weiPerOneSnx).div(
             DEC_18
         );
-        // uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
         uint256 contractDebtValue = getContractDebtValue();
         uint256 contractDebtValueInWei = calculateDebtValueInWei(
             contractDebtValue
@@ -695,51 +694,26 @@ contract TradeAccounting is Whitelist {
         uint256 totalSupply,
         uint256 contractDebtValue,
         uint256 issuanceRatio
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         uint256 latestEstDebt = contractDebtValue.sub(
             susdToBurnForRatioAndEscrow
         );
 
         uint256 nonEscrowedSnxValue = getContractOwnedSnxValue();
+        
+        // assumes debt<=>hedge portfolio parity
         uint256 snxToSell = getSnxBalanceOwned().mul(tokensToRedeem).div(
             totalSupply
         );
         uint256 valueOfSnxToSell = snxToSell.mul(getSnxPrice()).div(DEC_18);
 
+        // this is the reduced algebraic function to 
+        // calculate susd to burn while avoiding
+        // solidity division constraints 
         uint256 firstTerm = DEC_18.mul(latestEstDebt);
         uint256 secondTerm = issuanceRatio.mul(valueOfSnxToSell);
         uint256 thirdTerm = issuanceRatio.mul(nonEscrowedSnxValue);
         return (firstTerm.add(secondTerm).sub(thirdTerm)).div(DEC_18);
-    }
-
-    // function to gauge potential susd input for xsnx.unwindStakedPosition
-    function calculateLiquidityRedemptionRequirements(
-        uint256 tokensToRedeem,
-        uint256 totalSupply
-    ) public view returns (uint256 totalSusdToBurn) {
-        uint256 snxValueHeld = getContractSnxValue();
-        uint256 contractDebtValue = getContractDebtValue();
-        uint256 issuanceRatio = getIssuanceRatio();
-
-        uint256 susdToBurnToFixRatio = calculateSusdToBurnToFixRatio(
-            snxValueHeld,
-            contractDebtValue,
-            issuanceRatio
-        );
-
-
-            uint256 susdToBurnToEclipseEscrowed
-         = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
-        uint256 susdToBurnForRedemption = calculateSusdToBurnForRedemption(
-            susdToBurnToFixRatio.add(susdToBurnToEclipseEscrowed),
-            tokensToRedeem,
-            totalSupply,
-            contractDebtValue,
-            issuanceRatio
-        );
-        totalSusdToBurn = susdToBurnToFixRatio
-            .add(susdToBurnToEclipseEscrowed)
-            .add(susdToBurnForRedemption);
     }
 
     /* ========================================================================================= */

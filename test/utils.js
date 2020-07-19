@@ -9,6 +9,26 @@ const DEC_18 = new BN(web3.utils.toWei('1'))
 const toNumber = (val) => Number(val.toString())
 const bn = val => new BN(val)
 
+const increaseTime = async seconds => {
+  const id = Date.now();
+   return new Promise((resolve, reject) => {
+    web3.currentProvider.send({
+      jsonrpc: '2.0',
+      method: 'evm_increaseTime',
+      params: [seconds],
+      id,
+    }, (err1) => {
+      if (err1) return reject(err1);
+
+      web3.currentProvider.send({
+        jsonrpc: '2.0',
+        method: 'evm_mine',
+        id: id + 1,
+      }, (err2, res) => (err2 ? reject(err2) : resolve(res)));
+    });
+  });
+}
+
 module.exports = {
   assertBNEqual,
   BN_ZERO,
@@ -17,5 +37,6 @@ module.exports = {
   collatDivisor,
   DEC_18,
   toNumber,
-  bn
+  bn,
+  increaseTime
 }

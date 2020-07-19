@@ -29,11 +29,10 @@ const migrationInputs = {
     mainnet: '',
   },
   ADDRESS_RESOLVER: {
-    // kovan: synthetix.getTarget({
-    //   network: 'kovan',
-    //   contract: 'AddressResolver',
-    // }).address,
-    kovan:'0x25ee175d78B22A55982c09e6A03D605aE5B5c17C',
+    kovan: synthetix.getTarget({
+      network: 'kovan',
+      contract: 'ReadProxyAddressResolver',
+    }).address,
     mainnet: '',
   },
   REBALANCING_MODULE: {
