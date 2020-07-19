@@ -7,7 +7,7 @@ const isEth20Smaco = deployment === 'ETH20SMACO'
 
 const resolver = synthetix.getTarget({
   network: 'kovan',
-  contract: 'AddressResolver',
+  contract: 'ReadProxyAddressResolver',
 }).address
 console.log('resolver', resolver)
 
