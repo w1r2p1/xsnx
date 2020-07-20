@@ -13,7 +13,6 @@ import "./helpers/Pausable.sol";
 import "./interface/IRebalancingSetIssuanceModule.sol";
 import "./interface/IKyberNetworkProxy.sol";
 
-
 contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     address private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address private susdAddress;
@@ -85,26 +84,33 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @notice Mint new xSNX tokens from the contract by sending ETH
      * @dev Exchanges ETH for SNX
      * @dev Min rate ETH/SNX sourced from Kyber in JS
-     * @dev: Calculates overall fund NAV in ETH terms, using implicit
-     * ETH/SNX price from Kyber exchange
+     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price (via SNX oracle)
      * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
      * @param: minRate: kyber.getExpectedRate eth=>snx
      */
     function mint(uint256 minRate) external payable whenNotPaused {
         require(msg.value > 0, "Must send ETH");
+
         uint256 fee = _administerFee(msg.value, feeDivisors.mintFee);
-        uint256 ethUsedForSnx = msg.value.sub(fee);
+        uint256 ethContribution = msg.value.sub(fee);
         uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
 
-        tradeAccounting.swapEtherToToken.value(ethUsedForSnx)(
-            snxAddress,
-            minRate
-        );
+        uint256 totalSupply = totalSupply();
+        (bool allocateToEth, uint256 nonSnxAssetValue) = tradeAccounting
+            .getMintWithEthUtils(ethContribution, totalSupply);
+
+        if (!allocateToEth) {
+            tradeAccounting.swapEtherToToken.value(ethContribution)(
+                snxAddress,
+                minRate
+            );
+        }
 
         uint256 mintAmount = tradeAccounting.calculateTokensToMintWithEth(
             snxBalanceBefore,
-            ethUsedForSnx,
-            totalSupply()
+            ethContribution,
+            nonSnxAssetValue,
+            totalSupply
         );
 
         emit Mint(msg.sender, block.timestamp, msg.value, mintAmount, true);
@@ -494,15 +500,17 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         returns (uint256 fee)
     {
         if (!tradeAccounting.isWhitelisted(msg.sender)) {
-            fee = value.div(feeDivisor);
-            withdrawableEthFees = withdrawableEthFees.add(fee);
+            if(feeDivisor > 0){
+                fee = value.div(feeDivisor);
+                withdrawableEthFees = withdrawableEthFees.add(fee);
+            }
         }
     }
 
     /*
      * @notice Inverse of fee i.e., a fee divisor of 100 == 1%
-     * @notice Three fee types 
-     * @notice Mint fee never charged on mintWithSnx 
+     * @notice Three fee types
+     * @notice Mint fee never charged on mintWithSnx
      */
     function setFeeDivisors(
         uint256 _mintFeeDivisor,
@@ -544,7 +552,5 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         IERC20(tokenAddress).approve(transferProxy, MAX_UINT);
     }
 
-    function() external payable {
-        require(msg.sender == address(tradeAccounting), "Must be TA");
-    }
+    function() external payable {}
 }

@@ -1,6 +1,5 @@
 pragma solidity 0.5.15;
 
-
 contract Migrations {
     address public owner;
     uint256 public last_completed_migration;

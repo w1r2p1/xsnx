@@ -11,9 +11,11 @@ const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 
+const toWei = web3.utils.toWei
+
 contract('xSNXCore: Minting', async (accounts) => {
   const [deployerAccount, account1] = accounts
-  const ethValue = web3.utils.toWei('0.1')
+  const ethValue = toWei('0.1')
 
   beforeEach(async () => {
     xsnx = await xSNXCore.deployed()
@@ -32,8 +34,8 @@ contract('xSNXCore: Minting', async (accounts) => {
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const debtValue = await tradeAccounting.extGetContractDebtValue()
 
-      const weiPerOneSnx = web3.utils.toWei('0.01')
-      const snxBalanceBefore = web3.utils.toWei('100')
+      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
+      const snxBalanceBefore = toWei('100')
       const snxTokenValueInWei = bn(snxBalanceBefore)
         .mul(bn(weiPerOneSnx))
         .div(bn(DEC_18))
@@ -41,6 +43,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       const navOnMint = await tradeAccounting.extCalculateNetAssetValueOnMint(
         weiPerOneSnx,
         snxBalanceBefore,
+        nonSnxAssetValue,
       )
       assertBNEqual(
         navOnMint,
@@ -49,40 +52,35 @@ contract('xSNXCore: Minting', async (accounts) => {
     })
 
     it('should correctly calculate number of tokens to mint with ETH', async () => {
-      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('100'))
-      await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+      await synthetix.transfer(kyberProxy.address, toWei('100'))
+      await xsnx.mint(0, { value: toWei('0.01') })
 
       const totalSupply = await xsnx.totalSupply()
       const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
 
-      const feeDivisor = await xsnx.feeDivisors();
-      const snxAmountAcquiredExFee = web3.utils.toWei('10')
+      const feeDivisor = await xsnx.feeDivisors()
+      const snxAmountAcquiredExFee = toWei('10')
       const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisor.mintFee))
       const snxAcquired = bn(snxAmountAcquiredExFee).sub(fee)
 
       await synthetix.transfer(xsnx.address, snxAcquired)
-      const snxBalanceAfter = await synthetix.balanceOf(xsnx.address)
+      const ethContribution = toWei('0.1')
 
-      const ethUsedForSnx = web3.utils.toWei('0.1')
+      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
 
-      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnx(
-        snxBalanceBefore,
-        ethUsedForSnx,
-      )
-      const snxTokenValueInWei = bn(snxBalanceBefore)
-        .mul(bn(weiPerOneSnx))
-        .div(bn(DEC_18))
-
+      const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const navOnMint = await tradeAccounting.extCalculateNetAssetValueOnMint(
         weiPerOneSnx,
         snxBalanceBefore,
+        nonSnxAssetValue,
       )
       const pricePerToken = navOnMint.mul(DEC_18).div(bn(totalSupply))
-      const tokensToMint = bn(ethUsedForSnx).mul(DEC_18).div(pricePerToken)
+      const tokensToMint = bn(ethContribution).mul(DEC_18).div(pricePerToken)
 
       const contractTokensToMint = await tradeAccounting.calculateTokensToMintWithEth(
         snxBalanceBefore,
-        ethUsedForSnx,
+        ethContribution,
+        nonSnxAssetValue,
         totalSupply,
       )
 
@@ -92,33 +90,37 @@ contract('xSNXCore: Minting', async (accounts) => {
     it('should correctly calculate number of tokens to mint with SNX', async () => {
       const totalSupply = await xsnx.totalSupply()
       const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
-      const snxToSend = web3.utils.toWei('10')
+      const snxToSend = toWei('10')
 
       const snxUsdObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('SNX'),
       )
-      const snxUsd = snxUsdObj[0];
+      const snxUsd = snxUsdObj[0]
       const ethUsdObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('sETH'),
       )
       const ethUsd = ethUsdObj[0]
       const weiPerOneSnx = bn(snxUsd).mul(DEC_18).div(bn(ethUsd))
       const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxToSend)).div(DEC_18)
+      const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
 
       const pricePerToken = await tradeAccounting.calculateIssueTokenPrice(
         weiPerOneSnx,
         snxBalanceBefore,
-        totalSupply
+        nonSnxAssetValue,
+        totalSupply,
       )
 
-      const expectedTokensToMint = proxyEthUsedForSnx.mul(DEC_18).div(bn(pricePerToken));
+      const expectedTokensToMint = proxyEthUsedForSnx
+        .mul(DEC_18)
+        .div(bn(pricePerToken))
 
       const contractTokensToMint = await tradeAccounting.calculateTokensToMintWithSnx(
         snxBalanceBefore,
         snxToSend,
-        totalSupply
-      )  
-      
+        totalSupply,
+      )
+
       assertBNEqual(expectedTokensToMint, contractTokensToMint)
     })
   })
@@ -141,7 +143,7 @@ contract('xSNXCore: Minting', async (accounts) => {
 
     it('should buy SNX with ETH', async () => {
       await xsnx.unpause({ from: deployerAccount })
-      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('100'))
+      await synthetix.transfer(kyberProxy.address, toWei('100'))
       await xsnx.mint(0, { value: ethValue, from: account1 })
 
       const xsnxBalSnx = await synthetix.balanceOf(xsnx.address)
@@ -164,12 +166,45 @@ contract('xSNXCore: Minting', async (accounts) => {
       )
     })
 
-    it('should issue xSNX tokens when buying with SNX', async() => {
-      const amount = web3.utils.toWei('10')
-      await synthetix.transfer(account1, amount)
-      await synthetix.approve(xsnx.address, amount, { from: account1 });
-      const xsnxBalBefore = await xsnx.balanceOf(account1)
+    it('should allocate to ETH on mint with ETH if ETH reserve is under-capitalized', async () => {
+      await setToken.transfer(rebalancingModule.address, toWei('20'))
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        value: toWei('1'),
+        to: kyberProxy.address,
+      })
+      await susd.transfer(synthetix.address, toWei('1000'))
+      await weth.transfer(kyberProxy.address, toWei('60'))
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset)
+
+      const xsnxSupply = await xsnx.totalSupply()
+      const xsnxToBurn = bn(xsnxSupply).div(bn(50))
+
+      // ETH dehydrated by redemption
+      await xsnx.burn(xsnxToBurn)
+
+      const ETH_TARGET = await tradeAccounting.extETH_TARGET()
       
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+      const setHoldings = await tradeAccounting.getSetHoldingsValueInWei()
+      
+      // assert deviation from target
+      assertBNEqual(bn(ethBalBefore).mul(ETH_TARGET).lt(bn(ethBalBefore).add(setHoldings)), true)
+
+      // eth rehydrated by mint with ETH when under target
+      await xsnx.mint('0', { value: toWei('0.01')})
+      
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+      assertBNEqual(bn(ethBalAfter).gt(bn(ethBalBefore)), true)
+    })
+
+    it('should issue xSNX tokens when buying with SNX', async () => {
+      const amount = toWei('10')
+      await synthetix.transfer(account1, amount)
+      await synthetix.approve(xsnx.address, amount, { from: account1 })
+      const xsnxBalBefore = await xsnx.balanceOf(account1)
+
       await xsnx.mintWithSnx(amount, { from: account1 })
       const xsnxBalAfter = await xsnx.balanceOf(account1)
       assertBNEqual(xsnxBalAfter.gt(xsnxBalBefore), true)
@@ -179,17 +214,17 @@ contract('xSNXCore: Minting', async (accounts) => {
   describe('NAV calculations on Redemption', async () => {
     // equal to NAV on issuance, less value of escrowed SNX
     it('should correctly calculate NAV on redemption', async () => {
-      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
-        value: web3.utils.toWei('1'),
+        value: toWei('1'),
         to: kyberProxy.address,
       })
-      await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
-      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
-      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
-      
-      await xsnx.mint(0, { value: web3.utils.toWei('0.01')})
+      await susd.transfer(synthetix.address, toWei('1000'))
+      await weth.transfer(kyberProxy.address, toWei('60'))
+      await synthetix.transfer(kyberProxy.address, toWei('1000'))
+
+      await xsnx.mint(0, { value: toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await xsnx.hedge(['0', '0'], activeAsset)
       const {
@@ -216,16 +251,16 @@ contract('xSNXCore: Minting', async (accounts) => {
     })
 
     it('should correctly calculate value of ETH to distribute per token redeemed', async () => {
-      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
-        value: web3.utils.toWei('1'),
+        value: toWei('1'),
         to: kyberProxy.address,
       })
-      await susd.transfer(synthetix.address, web3.utils.toWei('500'))
-      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
-      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
-      await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+      await susd.transfer(synthetix.address, toWei('500'))
+      await weth.transfer(kyberProxy.address, toWei('60'))
+      await synthetix.transfer(kyberProxy.address, toWei('1000'))
+      await xsnx.mint(0, { value: toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await xsnx.hedge(['0', '0'], activeAsset)
 
@@ -279,16 +314,16 @@ contract('xSNXCore: Minting', async (accounts) => {
 
   describe('Burning tokens on redemption', async () => {
     it('should send the correct amount of ETH based on tokens burned', async () => {
-      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
-        value: web3.utils.toWei('1'),
+        value: toWei('1'),
         to: kyberProxy.address,
       })
-      await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
-      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
-      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('500'))
-      await xsnx.mint(0, { value: web3.utils.toWei('0.01'), from: account1 })
+      await susd.transfer(synthetix.address, toWei('1000'))
+      await weth.transfer(kyberProxy.address, toWei('60'))
+      await synthetix.transfer(kyberProxy.address, toWei('500'))
+      await xsnx.mint(0, { value: toWei('0.01'), from: account1 })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await xsnx.hedge(['0', '0'], activeAsset)
       const account1Bal = await xsnx.balanceOf(account1)
@@ -317,10 +352,10 @@ contract('xSNXCore: Minting', async (accounts) => {
       // setTimeout is a hack to account for this truffle bug
       // https://github.com/trufflesuite/ganache-cli/issues/7
       // setTimeout(async () => {
-        const ethBalAfter = await web3.eth.getBalance(account1)
+      const ethBalAfter = await web3.eth.getBalance(account1)
 
-        // assertBNEqual(bn(ethBalBefore).add(valueToRedeem), bn(ethBalAfter))
-        assert(true)
+      // assertBNEqual(bn(ethBalBefore).add(valueToRedeem), bn(ethBalAfter))
+      assert(true)
       // }, 2000)
     })
   })

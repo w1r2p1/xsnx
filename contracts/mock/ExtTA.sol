@@ -45,8 +45,8 @@ contract ExtTA is TradeAccounting {
     function extGetContractSnxValue() public view returns(uint) {
         return getContractSnxValue();
     }
-    function extCalculateNetAssetValueOnMint(uint256 weiPerOneSnx, uint256 snxBalanceBefore) public view returns(uint){
-        return calculateNetAssetValueOnMint(weiPerOneSnx, snxBalanceBefore);
+    function extCalculateNetAssetValueOnMint(uint256 weiPerOneSnx, uint256 snxBalanceBefore, uint256 nonSnxAssetValue) public view returns(uint){
+        return calculateNetAssetValueOnMint(weiPerOneSnx, snxBalanceBefore, nonSnxAssetValue);
     }
     function extCalculateNetAssetValueOnRedeem(uint256 weiPerOneSnx, uint256 snxBalanceOwned, uint256 contractDebtValue) public view returns(uint){
         return calculateNetAssetValueOnRedeem(weiPerOneSnx, snxBalanceOwned, contractDebtValue);
@@ -60,8 +60,8 @@ contract ExtTA is TradeAccounting {
     function extCalculateRedeemTokenPrice(uint256 totalSupply, uint256 snxBalanceOwned, uint256 contractDebtValue) public view returns(uint){
         return calculateRedeemTokenPrice(totalSupply, snxBalanceOwned, contractDebtValue);
     }
-    function extGetWeiPerOneSnx(uint256 snxBalanceBefore, uint ethUsedForSnx) public view returns(uint){
-        return getWeiPerOneSnx(snxBalanceBefore, ethUsedForSnx);
+    function extGetWeiPerOneSnxOnMint() public view returns(uint){
+        return getWeiPerOneSnxOnMint();
     }
     function extGetSnxBalanceOwned() public view returns(uint){
         return getSnxBalanceOwned();
@@ -78,12 +78,17 @@ contract ExtTA is TradeAccounting {
     function extGetContractEscrowedSnxValue() public view returns(uint){
         return getContractEscrowedSnxValue();
     }
+    function extGetContractOwnedSnxValue() public view returns(uint){
+        return getContractOwnedSnxValue();
+    }
     function extCalculateHedgeAssetsValueInUsd() public view returns(uint){
         return calculateHedgeAssetsValueInUsd();
     }
     function extCalculateAssetChangesForRebalanceToHedge() public view returns(uint, uint){
         return calculateAssetChangesForRebalanceToHedge();
     }
-
+    function extETH_TARGET() public view returns(uint){
+        return 4;
+    }
 
 }

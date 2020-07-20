@@ -32,9 +32,9 @@ contract MockSynthetix is MockERC20 {
     event Debts(uint currentDebt, uint futureDebt);
     function issueMaxSynths() external {
         uint escrowBal = rewardEscrow.balanceOf(msg.sender);
-        uint snxVal = (balanceOf(msg.sender).add(escrowBal)).mul(snxPrice).div(DEC_18); // how to include role of escrowed?
+        uint snxVal = (balanceOf(msg.sender).add(escrowBal)).mul(snxPrice).div(DEC_18);
         uint currentDebt = accountDebt[msg.sender];
-        uint futureDebt = snxVal.mul(targetRatio()).div(DEC_18); // 10e18 * 1.25e17 / 1e18  = 
+        uint futureDebt = snxVal.mul(targetRatio()).div(DEC_18);
         emit Debts(currentDebt, futureDebt);
         if(currentDebt >= futureDebt) return;
         uint susdToSend = futureDebt.sub(currentDebt);

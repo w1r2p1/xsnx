@@ -17,7 +17,6 @@ import "./interface/ISetToken.sol";
 import "./interface/IKyberNetworkProxy.sol";
 import "./interface/ISetAssetBaseCollateral.sol";
 
-
 /* 
 	xSNX Target Allocation (assuming 800% C-RATIO)
 	----------------------
@@ -74,11 +73,11 @@ contract TradeAccounting is Whitelist {
 
     uint256 private constant DEC_18 = 1e18;
     uint256 private constant PERCENT = 100;
-    uint256 private constant ETH_TARGET = 4;
+    uint256 private constant ETH_TARGET = 4; // targets 1/4th of hedge portfolio
     uint256 private constant SLIPPAGE_RATE = 99;
     uint256 private constant MAX_UINT = 2**256 - 1;
-    uint256 private constant RATE_STALE_TIME = 3600;
-    uint256 private constant REBALANCE_THRESHOLD = 105;
+    uint256 private constant RATE_STALE_TIME = 3600; // 1 hour
+    uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
 
     ISynthetix private synthetix;
@@ -89,7 +88,8 @@ contract TradeAccounting is Whitelist {
 
     address private caller;
 
-    address private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address
+        private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address private snxAddress;
     address private setAddress;
     address private susdAddress;
@@ -212,15 +212,50 @@ contract TradeAccounting is Whitelist {
         valueToRedeem = pricePerToken.mul(tokensToRedeem).div(DEC_18);
     }
 
+    function getMintWithEthUtils(uint256 ethContribution, uint256 totalSupply)
+        public
+        view
+        returns (bool allocateToEth, uint256 nonSnxAssetValue)
+    {
+        uint256 setHoldingsInWei = getSetHoldingsValueInWei();
+        uint256 ethBal = getEthBalance();
+
+        allocateToEth = shouldAllocateEthToEthReserve(
+            ethContribution,
+            setHoldingsInWei,
+            ethBal,
+            totalSupply
+        );
+        nonSnxAssetValue = setHoldingsInWei.add(ethBal);
+    }
+
+    function shouldAllocateEthToEthReserve(
+        uint256 ethContribution,
+        uint256 setHoldingsInWei,
+        uint256 ethBal,
+        uint256 totalSupply
+    ) public view returns (bool allocateToEth) {
+        if (totalSupply == 0) return false;
+
+        uint256 ethBalBefore = ethBal.sub(ethContribution);
+
+        if (ethBalBefore.mul(ETH_TARGET) < ethBalBefore.add(setHoldingsInWei)) {
+            // ETH reserve is under target
+            return true;
+        }
+
+        return false;
+    }
+
     // eth terms
     function calculateNetAssetValueOnMint(
         uint256 weiPerOneSnx,
-        uint256 snxBalanceBefore
+        uint256 snxBalanceBefore,
+        uint256 nonSnxAssetValue
     ) internal view returns (uint256) {
         uint256 snxTokenValueInWei = snxBalanceBefore.mul(weiPerOneSnx).div(
             DEC_18
         );
-        uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
         uint256 contractDebtValue = getContractDebtValue();
         uint256 contractDebtValueInWei = calculateDebtValueInWei(
             contractDebtValue
@@ -252,17 +287,6 @@ contract TradeAccounting is Whitelist {
         return getSetHoldingsValueInWei().add(getEthBalance());
     }
 
-    // eth terms
-    function getWeiPerOneSnx(uint256 snxBalanceBefore, uint256 ethUsedForSnx)
-        internal
-        view
-        returns (uint256 weiPerOneSnx)
-    {
-        uint256 snxBalanceAfter = getSnxBalance();
-        uint256 snxBought = snxBalanceAfter.sub(snxBalanceBefore);
-        weiPerOneSnx = ethUsedForSnx.mul(DEC_18).div(snxBought);
-    }
-
     function getWeiPerOneSnxOnRedeem()
         internal
         view
@@ -287,25 +311,36 @@ contract TradeAccounting is Whitelist {
             : (synthSymbols[1]);
     }
 
+    function getWeiPerOneSnxOnMint() internal view returns (uint256) {
+        uint256 snxUsd = getSynthPrice(snx);
+        uint256 ethUsd = getSynthPrice(seth);
+        return snxUsd.mul(DEC_18).div(ethUsd);
+    }
+
+    function getInitialSupply() internal view returns (uint256) {
+        return
+            IERC20(snxAddress).balanceOf(caller).mul(INITIAL_SUPPLY_MULTIPLIER);
+    }
+
     function calculateTokensToMintWithEth(
         uint256 snxBalanceBefore,
-        uint256 ethUsedForSnx,
+        uint256 ethContributed,
+        uint256 nonSnxAssetValue,
         uint256 totalSupply
     ) public view returns (uint256) {
         if (totalSupply == 0) {
-            return
-                IERC20(snxAddress).balanceOf(caller).mul(
-                    INITIAL_SUPPLY_MULTIPLIER
-                );
+            return getInitialSupply();
         }
-        uint256 weiPerOneSnx = getWeiPerOneSnx(snxBalanceBefore, ethUsedForSnx);
+
+        uint256 weiPerOneSnx = getWeiPerOneSnxOnMint();
         uint256 pricePerToken = calculateIssueTokenPrice(
             weiPerOneSnx,
             snxBalanceBefore,
+            nonSnxAssetValue,
             totalSupply
         );
 
-        return ethUsedForSnx.mul(DEC_18).div(pricePerToken);
+        return ethContributed.mul(DEC_18).div(pricePerToken);
     }
 
     function calculateTokensToMintWithSnx(
@@ -314,34 +349,34 @@ contract TradeAccounting is Whitelist {
         uint256 totalSupply
     ) public view returns (uint256) {
         if (totalSupply == 0) {
-            return
-                IERC20(snxAddress).balanceOf(caller).mul(
-                    INITIAL_SUPPLY_MULTIPLIER
-                );
+            return getInitialSupply();
         }
-        uint256 snxUsd = getSynthPrice(snx);
-        uint256 ethUsd = getSynthPrice(seth);
-        uint256 weiPerOneSnx = snxUsd.mul(DEC_18).div(ethUsd);
+
+        uint256 weiPerOneSnx = getWeiPerOneSnxOnMint();
         // need to derive snx contribution in eth terms for NAV calc
-        uint256 proxyEthUsedForSnx = weiPerOneSnx.mul(snxBalanceAdded).div(
+        uint256 proxyEthContribution = weiPerOneSnx.mul(snxBalanceAdded).div(
             DEC_18
         );
+        uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
         uint256 pricePerToken = calculateIssueTokenPrice(
             weiPerOneSnx,
             snxBalanceBefore,
+            nonSnxAssetValue,
             totalSupply
         );
-        return proxyEthUsedForSnx.mul(DEC_18).div(pricePerToken);
+        return proxyEthContribution.mul(DEC_18).div(pricePerToken);
     }
 
     function calculateIssueTokenPrice(
         uint256 weiPerOneSnx,
         uint256 snxBalanceBefore,
+        uint256 nonSnxAssetValue,
         uint256 totalSupply
     ) public view returns (uint256 pricePerToken) {
         pricePerToken = calculateNetAssetValueOnMint(
             weiPerOneSnx,
-            snxBalanceBefore
+            snxBalanceBefore,
+            nonSnxAssetValue
         )
             .mul(DEC_18)
             .div(totalSupply);
@@ -659,51 +694,26 @@ contract TradeAccounting is Whitelist {
         uint256 totalSupply,
         uint256 contractDebtValue,
         uint256 issuanceRatio
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         uint256 latestEstDebt = contractDebtValue.sub(
             susdToBurnForRatioAndEscrow
         );
 
         uint256 nonEscrowedSnxValue = getContractOwnedSnxValue();
+        
+        // assumes debt<=>hedge portfolio parity
         uint256 snxToSell = getSnxBalanceOwned().mul(tokensToRedeem).div(
             totalSupply
         );
         uint256 valueOfSnxToSell = snxToSell.mul(getSnxPrice()).div(DEC_18);
 
+        // this is the reduced algebraic function to 
+        // calculate susd to burn while avoiding
+        // solidity division constraints 
         uint256 firstTerm = DEC_18.mul(latestEstDebt);
         uint256 secondTerm = issuanceRatio.mul(valueOfSnxToSell);
         uint256 thirdTerm = issuanceRatio.mul(nonEscrowedSnxValue);
         return (firstTerm.add(secondTerm).sub(thirdTerm)).div(DEC_18);
-    }
-
-    // function to gauge potential susd input for xsnx.unwindStakedPosition
-    function calculateLiquidityRedemptionRequirements(
-        uint256 tokensToRedeem,
-        uint256 totalSupply
-    ) public view returns (uint256 totalSusdToBurn) {
-        uint256 snxValueHeld = getContractSnxValue();
-        uint256 contractDebtValue = getContractDebtValue();
-        uint256 issuanceRatio = getIssuanceRatio();
-
-        uint256 susdToBurnToFixRatio = calculateSusdToBurnToFixRatio(
-            snxValueHeld,
-            contractDebtValue,
-            issuanceRatio
-        );
-
-
-            uint256 susdToBurnToEclipseEscrowed
-         = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
-        uint256 susdToBurnForRedemption = calculateSusdToBurnForRedemption(
-            susdToBurnToFixRatio.add(susdToBurnToEclipseEscrowed),
-            tokensToRedeem,
-            totalSupply,
-            contractDebtValue,
-            issuanceRatio
-        );
-        totalSusdToBurn = susdToBurnToFixRatio
-            .add(susdToBurnToEclipseEscrowed)
-            .add(susdToBurnForRedemption);
     }
 
     /* ========================================================================================= */
@@ -725,6 +735,7 @@ contract TradeAccounting is Whitelist {
             debtValueInUsd,
             issuanceRatio
         );
+
 
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);

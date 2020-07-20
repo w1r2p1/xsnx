@@ -1,4 +1,4 @@
-const { assertBNEqual, BN_ZERO, bn, DEC_18 } = require('./utils')
+const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime } = require('./utils')
 const truffleAssert = require('truffle-assertions')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -11,7 +11,7 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 
-contract('xSNXCore: Unwinds', async (accounts) => {
+contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
   const [deployerAccount, account1] = accounts
 
   beforeEach(async () => {
@@ -66,6 +66,55 @@ contract('xSNXCore: Unwinds', async (accounts) => {
       assertBNEqual(snxBalanceBefore.gt(snxBalanceAfter), true)
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
       assertBNEqual(debtValueBefore.gt(debtValueAfter), true)
+    })
+  })
+
+  describe('Liquidation Unwind', async () => {
+    it('should revert if there has been a staking transaction within the liquidation wait period', async () => {
+      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        value: web3.utils.toWei('1'),
+        to: kyberProxy.address,
+      })
+      await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
+      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
+      await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
+      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+
+      await xsnx.mint('0', { value: web3.utils.toWei('0.02') })
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset)
+      const susdToBurn = web3.utils.toWei('0.05')
+      const minRates = ['0', '0']
+      const snxToSell = web3.utils.toWei('0.02')
+      await truffleAssert.reverts(
+        xsnx.liquidationUnwind(susdToBurn, minRates, snxToSell),
+        'Liquidation not available',
+      )
+    })
+
+    // Some fraction of SNX position is likely still locked due to escrow, debt mgmt, etc
+    it('should unwind an SNX position into ETH if waiting period has elapsed', async () => {
+      const SEVEN_WEEKS = 60 * 60 * 24 * 7 * 7
+      await increaseTime(SEVEN_WEEKS)
+
+      const snxBal = await tradeAccounting.getSnxBalance()
+
+      const debtValueBefore = await tradeAccounting.extGetContractDebtValue()
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+
+      await xsnx.liquidationUnwind(
+        bn(debtValueBefore).div(bn(2)),
+        ['0', '0'],
+        bn(snxBal).div(bn(2)),
+      )
+
+      const debtValueAfter = await tradeAccounting.extGetContractDebtValue()
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+
+      assertBNEqual(bn(ethBalAfter).gt(bn(ethBalBefore)), true)
+      assertBNEqual(bn(debtValueBefore).gt(bn(debtValueAfter)), true)
     })
   })
 })

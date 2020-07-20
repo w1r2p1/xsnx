@@ -91,5 +91,33 @@ contract('xSNXCore: Claim', async (accounts) => {
       const ethBalAfter = await tradeAccounting.getEthBalance()
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
     })
+
+    it('should claim if collateralization is over', async () => {
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        value: web3.utils.toWei('1'),
+        to: kyberProxy.address,
+      })
+      await susd.transfer(synthetix.address, web3.utils.toWei('500'))
+      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
+      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+      await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      await xsnx.hedge(['0', '0'], activeAsset)
+
+      const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
+      assertBNEqual(susdToBurnCollat, BN_ZERO)
+
+      await xsnx.claim(susdToBurnCollat, [0, 0], true, {
+        from: deployerAccount,
+      })
+
+      // sUSD is immediately exchanged for ETH on claims so a
+      // higher ETH balance signifies a successful claim
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+      assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
+    })
   })
 })
