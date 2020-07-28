@@ -6,8 +6,10 @@ const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockSUSD = artifacts.require('MockSUSD')
+const MockUSDC = artifacts.require('MockUSDC')
 const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
+const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 
 contract('xSNXCore: Hedge function', async (accounts) => {
@@ -18,10 +20,12 @@ contract('xSNXCore: Hedge function', async (accounts) => {
     tradeAccounting = await TradeAccounting.deployed()
     synthetix = await MockSynthetix.deployed()
     susd = await MockSUSD.deployed()
+    usdc = await MockUSDC.deployed()
     kyberProxy = await MockKyberProxy.deployed()
     setToken = await MockSetToken.deployed()
     weth = await MockWETH.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
+    curve = await MockCurveFi.deployed()
 
     await susd.transfer(synthetix.address, web3.utils.toWei('100'))
     await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
@@ -32,6 +36,8 @@ contract('xSNXCore: Hedge function', async (accounts) => {
     })
     await setToken.transfer(rebalancingModule.address, web3.utils.toWei('2'))
     await weth.transfer(kyberProxy.address, web3.utils.toWei('50'))
+    await susd.transfer(curve.address, web3.utils.toWei('100'))
+    await usdc.transfer(curve.address, web3.utils.toWei('100'))
   })
 
   describe('Staking and hedging', async () => {
@@ -39,7 +45,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
       await xsnx.pause()
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await truffleAssert.reverts(
-        xsnx.hedge(['0', '0'], activeAsset),
+        xsnx.hedge(0, [0, 0], [0, 0], activeAsset, 0),
         'Pausable: paused',
       )
     })
@@ -48,7 +54,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
       await xsnx.unpause()
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await truffleAssert.reverts(
-        xsnx.hedge(['0', '0'], activeAsset, { from: account1 }),
+        xsnx.hedge(0, [0, 0], [0, 0], activeAsset, 0, { from: account1 }),
         'Ownable: caller is not the owner',
       )
     })
@@ -57,7 +63,9 @@ contract('xSNXCore: Hedge function', async (accounts) => {
       const ethBalBefore = await web3.eth.getBalance(xsnx.address)
       await xsnx.mint('0', { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(['0', '0'], activeAsset, { from: deployerAccount })
+      await xsnx.hedge(1000000000, [0, 0], [0, 0], activeAsset, 250000000, {
+        from: deployerAccount,
+      })
       const ethBalAfter = await web3.eth.getBalance(xsnx.address)
       assert(bn(ethBalAfter).gt(bn(ethBalBefore)), true)
     })

@@ -20,44 +20,6 @@ contract('TradeAccounting: Kyber', async () => {
     usdc = await MockUSDC.deployed()
   })
 
-  describe('Get Expected Rate', async () => {
-    it('should return an expected rate for ETH/SNX', async () => {
-      const expectedRateObj = await tradeAccounting.getExpectedRate(
-        ETH_ADDRESS,
-        synthetix.address,
-        tokenAmount,
-      )
-      assert.equal(expectedRateObj.expectedRate.gt(BN_ZERO), true)
-    })
-
-    it('should return an expected rate for ETH/sUSD', async () => {
-      const expectedRateObj = await tradeAccounting.getExpectedRate(
-        ETH_ADDRESS,
-        susd.address,
-        tokenAmount,
-      )
-      assert.equal(expectedRateObj.expectedRate.gt(BN_ZERO), true)
-    })
-
-    it('should return an expected rate for Set Asset 1', async () => {
-      const expectedRateObj = await tradeAccounting.getExpectedRate(
-        ETH_ADDRESS,
-        weth.address,
-        tokenAmount,
-      )
-      assert.equal(expectedRateObj.expectedRate.gt(BN_ZERO), true)
-    })
-
-    it('should return an expected rate for Set Asset 2', async () => {
-      const expectedRateObj = await tradeAccounting.getExpectedRate(
-        ETH_ADDRESS,
-        usdc.address,
-        tokenAmount,
-      )
-      assert.equal(expectedRateObj.expectedRate.gt(BN_ZERO), true)
-    })
-  })
-
   describe('Direct calls to Kyber swap functions', async () => {
     it('should result in a revert if swapEtherToToken is called by any address but the caller', async () => {
       await truffleAssert.reverts(
@@ -75,6 +37,7 @@ contract('TradeAccounting: Kyber', async () => {
           tokenAmount,
           weth.address,
           0,
+          0
         ),
         'Only xSNX contract can call',
       )
@@ -82,7 +45,7 @@ contract('TradeAccounting: Kyber', async () => {
 
     it('should result in a revert if swapTokenToEther is called by any address but the caller', async () => {
       await truffleAssert.reverts(
-        tradeAccounting.swapTokenToEther(susd.address, tokenAmount, 0),
+        tradeAccounting.swapTokenToEther(susd.address, tokenAmount, 0, 0),
         'Only xSNX contract can call',
       )
     })

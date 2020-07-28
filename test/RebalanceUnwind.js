@@ -5,11 +5,13 @@ const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockSUSD = artifacts.require('MockSUSD')
+const MockUSDC = artifacts.require('MockUSDC')
 const MockWETH = artifacts.require('MockWETH')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
+const MockCurveFi = artifacts.require('MockCurveFi')
 
 contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
   const [deployerAccount, account1] = accounts
@@ -22,9 +24,11 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
     setToken = await MockSetToken.deployed()
     rewardEscrow = await MockRewardEscrow.deployed()
     susd = await MockSUSD.deployed()
+    usdc = await MockUSDC.deployed()
     weth = await MockWETH.deployed()
     kyberProxy = await MockKyberProxy.deployed()
     exchangeRates = await MockExchangeRates.deployed()
+    curve = await MockCurveFi.deployed()
   })
 
   describe('Unwinding staked position', async () => {
@@ -39,10 +43,24 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+      await susd.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, web3.utils.toWei('100'))
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(['0', '0'], activeAsset)
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+
+      await xsnx.hedge(
+        amountSusd,
+        ['0', '0'],
+        ['0', '0'],
+        activeAsset,
+        ethAllocation,
+      )
 
       const debtValueBefore = await tradeAccounting.extGetContractDebtValue() // usd terms
       const ethBalBefore = await tradeAccounting.getEthBalance()
@@ -54,6 +72,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       await xsnx.unwindStakedPosition(
         someAmountDebt,
         activeAsset,
+        ['0', '0'],
         ['0', '0'],
         someAmountSnx,
       )
@@ -84,12 +103,28 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
 
       await xsnx.mint('0', { value: web3.utils.toWei('0.02') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(['0', '0'], activeAsset)
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const debtBalance = await synthetix.debtBalanceOf(
+        xsnx.address,
+        web3.utils.fromAscii('sUSD'),
+      )
+      const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+
+      await xsnx.hedge(
+        amountSusd,
+        ['0', '0'],
+        ['0', '0'],
+        activeAsset,
+        ethAllocation,
+      )
       const susdToBurn = web3.utils.toWei('0.05')
       const minRates = ['0', '0']
       const snxToSell = web3.utils.toWei('0.02')
       await truffleAssert.reverts(
-        xsnx.liquidationUnwind(susdToBurn, minRates, snxToSell),
+        xsnx.liquidationUnwind(susdToBurn, minRates, minRates, snxToSell),
         'Liquidation not available',
       )
     })
@@ -103,10 +138,12 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
 
       const debtValueBefore = await tradeAccounting.extGetContractDebtValue()
       const ethBalBefore = await tradeAccounting.getEthBalance()
+      const minRates = ['0', '0']
 
       await xsnx.liquidationUnwind(
         bn(debtValueBefore).div(bn(2)),
-        ['0', '0'],
+        minRates,
+        minRates,
         bn(snxBal).div(bn(2)),
       )
 

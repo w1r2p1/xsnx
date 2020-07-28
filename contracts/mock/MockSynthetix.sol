@@ -11,7 +11,6 @@ contract MockSynthetix is MockERC20 {
     uint DEC_18 = 1e18;
 
     address susdAddress;
-    // address rewardEscrowAddress;
     IRewardEscrow rewardEscrow;
     bytes32 susd = "sUSD";
 
@@ -28,18 +27,31 @@ contract MockSynthetix is MockERC20 {
     constructor() MockERC20("SNX", "Synthetix", 18, 10000e18) public {
 
     }
+    
+    function getEscrowBal(address account) public view returns(uint){
+        return rewardEscrow.balanceOf(account);
+    }
 
-    event Debts(uint currentDebt, uint futureDebt);
     function issueMaxSynths() external {
-        uint escrowBal = rewardEscrow.balanceOf(msg.sender);
+        uint escrowBal = getEscrowBal(msg.sender);
         uint snxVal = (balanceOf(msg.sender).add(escrowBal)).mul(snxPrice).div(DEC_18);
         uint currentDebt = accountDebt[msg.sender];
         uint futureDebt = snxVal.mul(targetRatio()).div(DEC_18);
-        emit Debts(currentDebt, futureDebt);
         if(currentDebt >= futureDebt) return;
         uint susdToSend = futureDebt.sub(currentDebt);
         IERC20(susdAddress).transfer(msg.sender, susdToSend);
         accountDebt[msg.sender] = futureDebt;
+    }
+
+    function issueSynths(uint amount) external {
+        uint escrowBal = getEscrowBal(msg.sender);
+        uint snxVal = (balanceOf(msg.sender).add(escrowBal)).mul(snxPrice).div(DEC_18);
+        uint maxDebt = snxVal.mul(targetRatio()).div(DEC_18);
+        uint currentDebt = accountDebt[msg.sender];
+        require(currentDebt.add(amount) <= maxDebt, "Above c-ratio");
+
+        accountDebt[msg.sender] = currentDebt.add(amount);
+        IERC20(susdAddress).transfer(msg.sender, amount);
     }
 
     function debtBalanceOf(address issuer, bytes32 currencyKey) external view returns (uint) {
