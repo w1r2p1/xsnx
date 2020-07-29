@@ -5,7 +5,8 @@ jobs:
   build-and-test:
     docker:
       - image: circleci/node:10.16
-      - image: trufflesuite/ganache-cli --port=8546
+      - image: trufflesuite/ganache-cli
+        command: [--allowUnlimitedContractSize]
     executor:
       name: node/default
     steps:
