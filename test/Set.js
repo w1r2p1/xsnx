@@ -8,6 +8,7 @@ const xSNXCore = artifacts.require('ExtXC')
 const MockWETH = artifacts.require('MockWETH')
 const MockSUSD = artifacts.require('MockSUSD')
 const MockUSDC = artifacts.require('MockUSDC')
+const MockKyberProxy = artifacts.require('MockKyberProxy')
 
 // uses ExtTradeAccounting wrapper to read internal functions externally
 contract('TradeAccounting: Set Protocol', async (accounts) => {
@@ -26,6 +27,7 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
     weth = await MockWETH.deployed()
     susd = await MockSUSD.deployed()
     usdc = await MockUSDC.deployed()
+    kyberProxy = await MockKyberProxy.deployed()
 
     await setToken.transfer(xsnx.address, tokenAmount)
     await weth.transfer(xsnx.address, tokenAmount)
@@ -120,7 +122,7 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
       const percent = new BN(100)
 
       const expectedRate = (
-        await tradeAccounting.getExpectedRate(
+        await kyberProxy.getExpectedRate(
           susd.address,
           weth.address,
           susdToBurn,
@@ -156,7 +158,7 @@ contract('TradeAccounting: Set Protocol', async (accounts) => {
       const percent = new BN(100)
 
       const expectedRate = (
-        await tradeAccounting.getExpectedRate(
+        await kyberProxy.getExpectedRate(
           susd.address,
           usdc.address,
           susdToBurn,

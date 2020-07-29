@@ -4,6 +4,7 @@ const { assertBNEqual, BN_ZERO, DEC_18, bn } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const ExtTradeAccounting = artifacts.require('ExtTA')
 const MockSUSD = artifacts.require('MockSUSD')
+const MockUSDC = artifacts.require('MockUSDC')
 const MockFeePool = artifacts.require('MockFeePool')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockAddressResolver = artifacts.require('MockAddressResolver')
@@ -13,6 +14,7 @@ const MockSynthetixState = artifacts.require('MockSynthetixState')
 const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
+const MockCurveFi = artifacts.require('MockCurveFi')
 
 contract('xSNXCore: Claim', async (accounts) => {
   const [deployerAccount, account1] = accounts
@@ -27,9 +29,11 @@ contract('xSNXCore: Claim', async (accounts) => {
     exchRates = await MockExchangeRates.deployed()
     synthetix = await MockSynthetix.deployed()
     weth = await MockWETH.deployed()
+    usdc = await MockUSDC.deployed()
     setToken = await MockSetToken.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
     synthetixState = await MockSynthetixState.deployed()
+    curve = await MockCurveFi.deployed()
 
     await susd.transfer(feePool.address, web3.utils.toWei('5'))
     await weth.transfer(rebalancingModule.address, web3.utils.toWei('5'))
@@ -38,7 +42,7 @@ contract('xSNXCore: Claim', async (accounts) => {
   describe('Claiming fees/rewards', async (accounts) => {
     it('should revert if called from non owner', async () => {
       await truffleAssert.reverts(
-        xsnx.claim(0, [0, 0], true, { from: account1 }),
+        xsnx.claim(0, [0, 0], [0,0], true, { from: account1 }),
         'Ownable: caller is not the owner',
       )
     })
@@ -49,15 +53,16 @@ contract('xSNXCore: Claim', async (accounts) => {
         to: kyberProxy.address,
         value: web3.utils.toWei('3'),
       })
-
-      await xsnx.claim(0, [0, 0], true, { from: deployerAccount })
+      await susd.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, web3.utils.toWei('100'))
+      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
       const withdrawableSusdFees = await xsnx.withdrawableSusdFees()
       assertBNEqual(withdrawableSusdFees.gt(BN_ZERO), true)
     })
 
     it('should exchange sUSD for ETH on successful claim', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
-      await xsnx.claim(0, [0, 0], true, { from: deployerAccount })
+      await xsnx.claim(0, [0, 0], [0,0], true, { from: deployerAccount })
       const ethBalAfter = await tradeAccounting.getEthBalance()
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
     })
@@ -73,16 +78,29 @@ contract('xSNXCore: Claim', async (accounts) => {
       await susd.transfer(synthetix.address, web3.utils.toWei('500'))
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+      await susd.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, web3.utils.toWei('100'))
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(['0', '0'], activeAsset)
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const amountSusd = bn(snxValueHeld).div(bn(9)) // 900% c-ratio
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+      await xsnx.hedge(
+        amountSusd,
+        ['0', '0'],
+        ['0', '0'],
+        activeAsset,
+        ethAllocation,
+      )
 
-
-      await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.02'))  
+      await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.02'))
 
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
 
-      await xsnx.claim(susdToBurnCollat, [0, 0], true, {
+      await xsnx.claim(susdToBurnCollat, [0, 0], [0,0], true, {
         from: deployerAccount,
       })
 
@@ -105,12 +123,25 @@ contract('xSNXCore: Claim', async (accounts) => {
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(['0', '0'], activeAsset)
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const debtBalance = await synthetix.debtBalanceOf(xsnx.address, web3.utils.fromAscii('sUSD'))
+      const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+
+      await xsnx.hedge(
+        amountSusd,
+        ['0', '0'],
+        ['0', '0'],
+        activeAsset,
+        ethAllocation,
+      )
 
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
       assertBNEqual(susdToBurnCollat, BN_ZERO)
 
-      await xsnx.claim(susdToBurnCollat, [0, 0], true, {
+      await xsnx.claim(susdToBurnCollat, [0, 0], [0,0], true, {
         from: deployerAccount,
       })
 

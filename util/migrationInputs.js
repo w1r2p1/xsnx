@@ -5,11 +5,11 @@ const deployment = 'ETH20SMACO'
 
 const isEth20Smaco = deployment === 'ETH20SMACO'
 
-const resolver = synthetix.getTarget({
+const susd = synthetix.getTarget({
   network: 'kovan',
-  contract: 'ReadProxyAddressResolver',
+  contract: 'ProxyERC20sUSD',
 }).address
-console.log('resolver', resolver)
+console.log('susd', susd)
 
 const migrationInputs = {
   SET_ADDRESS: {
@@ -39,6 +39,10 @@ const migrationInputs = {
     kovan: '0x91E1489D04054Ae552a369504F94E0236909c53c',
     mainnet: '',
   },
+  CURVE_POOL: {
+    kovan: '0x1daB6560494B04473A0BE3E7D83CF3Fdf3a51828',
+    mainnet: '0xA5407eAE9Ba41422680e2e00537571bcC53efBfD',
+  },
   SUSD_ADDRESS: {
     kovan: synthetix.getTarget({ network: 'kovan', contract: 'ProxyERC20sUSD' })
       .address,
@@ -48,6 +52,10 @@ const migrationInputs = {
     kovan: synthetix.getTarget({ network: 'kovan', contract: 'ProxyERC20' })
       .address,
     mainnet: '',
+  },
+  USDC_ADDRESS: {
+    kovan: '0xA91FDf706d8675eE43E5Ac4cBDb5d615bd5921a8',
+    mainnet: ''
   },
   SET_TRANSFER_PROXY: {
     kovan: '0x61d264865756751392C0f00357Cc26ea70D98E3B',

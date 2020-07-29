@@ -13,6 +13,7 @@ import "synthetix/contracts/interfaces/IAddressResolver.sol";
 import "./Whitelist.sol";
 import "./interface/IxSNXCore.sol";
 
+import "./interface/ICurveFi.sol";
 import "./interface/ISetToken.sol";
 import "./interface/IKyberNetworkProxy.sol";
 import "./interface/ISetAssetBaseCollateral.sol";
@@ -80,6 +81,10 @@ contract TradeAccounting is Whitelist {
     uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
 
+    int128 USDC_INDEX = 1;
+    int128 SUSD_INDEX = 3;
+
+    ICurveFi private curveFi;
     ISynthetix private synthetix;
     IExchangeRates private exchangeRates;
     ISynthetixState private synthetixState;
@@ -93,6 +98,7 @@ contract TradeAccounting is Whitelist {
     address private snxAddress;
     address private setAddress;
     address private susdAddress;
+    address private usdcAddress;
 
     bytes32 constant snx = "SNX";
     bytes32 constant susd = "sUSD";
@@ -107,6 +113,7 @@ contract TradeAccounting is Whitelist {
         address _kyberProxyAddress,
         address _snxAddress,
         address _susdAddress,
+        address _usdcAddress,
         bytes32[2] memory _synthSymbols,
         address[2] memory _setComponentAddresses
     ) public {
@@ -114,6 +121,7 @@ contract TradeAccounting is Whitelist {
         kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
         snxAddress = _snxAddress;
         susdAddress = _susdAddress;
+        usdcAddress = _usdcAddress;
         synthSymbols = _synthSymbols;
         setComponentAddresses = _setComponentAddresses;
     }
@@ -146,44 +154,100 @@ contract TradeAccounting is Whitelist {
         address fromToken,
         uint256 amount,
         address toToken,
-        uint256 minConversionRate
+        uint256 minKyberRate,
+        uint256 minCurveReturn
     ) public onlyCaller {
-        kyberNetworkProxy.swapTokenToToken(
-            ERC20(fromToken),
-            amount,
-            ERC20(toToken),
-            minConversionRate
-        );
+        if (fromToken == susdAddress) {
+            _exchangeUnderlying(SUSD_INDEX, USDC_INDEX, amount, minCurveReturn);
+
+            uint256 usdcBal = getUsdcBalance();
+            require(usdcBal >= minCurveReturn, "Insufficient trade");
+
+            if (toToken != usdcAddress) {
+                _swapTokenToToken(usdcAddress, usdcBal, toToken, minKyberRate);
+            }
+        } else if (toToken == susdAddress) {
+            if (fromToken != usdcAddress) {
+                _swapTokenToToken(fromToken, amount, usdcAddress, minKyberRate);
+            }
+
+            uint256 usdcBal = getUsdcBalance();
+            _exchangeUnderlying(
+                USDC_INDEX,
+                SUSD_INDEX,
+                usdcBal,
+                minCurveReturn
+            );
+
+            uint256 susdBal = getSusdBalance();
+            require(susdBal >= minCurveReturn, "Insufficient trade");
+        } else {
+            _swapTokenToToken(fromToken, amount, toToken, minKyberRate);
+        }
+
         IERC20(toToken).transfer(
             caller,
             IERC20(toToken).balanceOf(address(this))
         );
     }
 
+    function _swapTokenToToken(
+        address _fromToken,
+        uint256 _amount,
+        address _toToken,
+        uint256 _minKyberRate
+    ) private {
+        kyberNetworkProxy.swapTokenToToken(
+            ERC20(_fromToken),
+            _amount,
+            ERC20(_toToken),
+            _minKyberRate
+        );
+    }
+
     function swapTokenToEther(
         address fromToken,
         uint256 amount,
-        uint256 minConversionRate
+        uint256 minKyberRate,
+        uint256 minCurveReturn
     ) public onlyCaller {
-        kyberNetworkProxy.swapTokenToEther(
-            ERC20(fromToken),
-            amount,
-            minConversionRate
-        );
+        if (fromToken == susdAddress) {
+            _exchangeUnderlying(SUSD_INDEX, USDC_INDEX, amount, minCurveReturn);
+            uint256 usdcBal = getUsdcBalance();
+            require(usdcBal >= minCurveReturn, "Insufficient trade");
+
+            _swapTokenToEther(usdcAddress, usdcBal, minKyberRate);
+        } else {
+            _swapTokenToEther(fromToken, amount, minKyberRate);
+        }
+
         uint256 ethBal = address(this).balance;
         msg.sender.transfer(ethBal);
     }
 
-    function getExpectedRate(
-        address fromToken,
-        address toToken,
-        uint256 amount
-    ) public view returns (uint256 expectedRate, uint256 slippageRate) {
-        (expectedRate, slippageRate) = kyberNetworkProxy.getExpectedRate(
-            ERC20(fromToken),
-            ERC20(toToken),
-            amount
+    function _swapTokenToEther(
+        address _fromToken,
+        uint256 _amount,
+        uint256 _minKyberRate
+    ) private {
+        kyberNetworkProxy.swapTokenToEther(
+            ERC20(_fromToken),
+            _amount,
+            _minKyberRate
         );
+    }
+
+    function _exchangeUnderlying(
+        int128 _inputIndex,
+        int128 _outputIndex,
+        uint256 _amount,
+        uint256 _minReturn
+    ) private {
+        curveFi.exchange_underlying(_inputIndex, _outputIndex, _amount, _minReturn);
+    }
+
+    function getUsdcBalance() internal view returns (uint256) {
+        return IERC20(usdcAddress).balanceOf(address(this));
     }
 
     /* ========================================================================================= */
@@ -234,7 +298,7 @@ contract TradeAccounting is Whitelist {
         uint256 setHoldingsInWei,
         uint256 ethBal,
         uint256 totalSupply
-    ) public view returns (bool allocateToEth) {
+    ) public pure returns (bool allocateToEth) {
         if (totalSupply == 0) return false;
 
         uint256 ethBalBefore = ethBal.sub(ethContribution);
@@ -447,9 +511,9 @@ contract TradeAccounting is Whitelist {
     {
         address currentSetAsset = getAssetCurrentlyActiveInSet();
 
-        (uint256 expectedSetAssetRate, ) = getExpectedRate(
-            susdAddress,
-            currentSetAsset,
+        (uint256 expectedSetAssetRate, ) = kyberNetworkProxy.getExpectedRate(
+            ERC20(susdAddress),
+            ERC20(currentSetAsset),
             totalSusdToBurn
         );
 
@@ -654,7 +718,7 @@ contract TradeAccounting is Whitelist {
         uint256 snxValueHeld,
         uint256 contractDebtValue,
         uint256 issuanceRatio
-    ) public view returns (uint256) {
+    ) public pure returns (uint256) {
         uint256 subtractor = issuanceRatio.mul(snxValueHeld).div(DEC_18);
 
         if (subtractor > contractDebtValue) return 0;
@@ -689,31 +753,24 @@ contract TradeAccounting is Whitelist {
     }
 
     function calculateSusdToBurnForRedemption(
-        uint256 susdToBurnForRatioAndEscrow,
         uint256 tokensToRedeem,
         uint256 totalSupply,
         uint256 contractDebtValue,
         uint256 issuanceRatio
-    ) public view returns (uint256) {
-        uint256 latestEstDebt = contractDebtValue.sub(
-            susdToBurnForRatioAndEscrow
-        );
-
+    ) public view returns (uint256 susdToBurn) {
         uint256 nonEscrowedSnxValue = getContractOwnedSnxValue();
-        
-        // assumes debt<=>hedge portfolio parity
-        uint256 snxToSell = getSnxBalanceOwned().mul(tokensToRedeem).div(
+        uint256 lockedSnxValue = contractDebtValue.mul(DEC_18).div(
+            issuanceRatio
+        );
+        uint256 snxToSell = nonEscrowedSnxValue.mul(tokensToRedeem).div(
             totalSupply
         );
         uint256 valueOfSnxToSell = snxToSell.mul(getSnxPrice()).div(DEC_18);
-
-        // this is the reduced algebraic function to 
-        // calculate susd to burn while avoiding
-        // solidity division constraints 
-        uint256 firstTerm = DEC_18.mul(latestEstDebt);
-        uint256 secondTerm = issuanceRatio.mul(valueOfSnxToSell);
-        uint256 thirdTerm = issuanceRatio.mul(nonEscrowedSnxValue);
-        return (firstTerm.add(secondTerm).sub(thirdTerm)).div(DEC_18);
+        susdToBurn = (
+            lockedSnxValue.add(valueOfSnxToSell).sub(nonEscrowedSnxValue)
+        )
+            .mul(issuanceRatio)
+            .div(DEC_18);   
     }
 
     /* ========================================================================================= */
@@ -957,6 +1014,10 @@ contract TradeAccounting is Whitelist {
         exchangeRates = IExchangeRates(exchangeRatesAddress);
     }
 
+    function setCurveAddress(address _curvePoolAddress) public onlyOwner {
+        curveFi = ICurveFi(_curvePoolAddress);
+    }
+
     /* ========================================================================================= */
     /*                                   		 Utils           		                         */
     /* ========================================================================================= */
@@ -964,6 +1025,11 @@ contract TradeAccounting is Whitelist {
     // admin on deployment approve [snx, susd, setComponentA, setComponentB]
     function approveKyber(address tokenAddress) public onlyOwner {
         IERC20(tokenAddress).approve(address(kyberNetworkProxy), MAX_UINT);
+    }
+
+    // admin on deployment approve [susd, usdc]
+    function approveCurve(address tokenAddress) public onlyOwner {
+        IERC20(tokenAddress).approve(address(curveFi), MAX_UINT);
     }
 
     function() external payable {}

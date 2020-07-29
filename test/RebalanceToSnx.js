@@ -5,11 +5,13 @@ const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockSUSD = artifacts.require('MockSUSD')
+const MockUSDC = artifacts.require('MockUSDC')
 const MockWETH = artifacts.require('MockWETH')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
+const MockCurveFi = artifacts.require('MockCurveFi')
 
 contract('xSNXCore: Rebalance to SNX', async (accounts) => {
   const [deployerAccount, account1] = accounts
@@ -22,9 +24,11 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
     setToken = await MockSetToken.deployed()
     rewardEscrow = await MockRewardEscrow.deployed()
     susd = await MockSUSD.deployed()
+    usdc = await MockUSDC.deployed()
     weth = await MockWETH.deployed()
     kyberProxy = await MockKyberProxy.deployed()
     exchangeRates = await MockExchangeRates.deployed()
+    curve = await MockCurveFi.deployed()
   })
 
   describe('Rebalance towards SNX', async () => {
@@ -39,19 +43,34 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+      await susd.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, web3.utils.toWei('100'))
+
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(['0', '0'], activeAsset)
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+
+      await xsnx.hedge(
+        amountSusd,
+        ['0', '0'],
+        ['0', '0'],
+        activeAsset,
+        ethAllocation,
+      )
 
       await setToken.transfer(xsnx.address, web3.utils.toWei('0.005'))
 
       const isRequired = await tradeAccounting.isRebalanceTowardsSnxRequired()
       assert.equal(isRequired, true)
-      
+
       const rebalanceUtils = await tradeAccounting.getRebalanceTowardsSnxUtils()
-      
+
       await xsnx.rebalanceTowardsSnx('0', rebalanceUtils[0], rebalanceUtils[1])
-     
+
       const isRequiredAfter = await tradeAccounting.isRebalanceTowardsSnxRequired()
       assert.equal(isRequiredAfter, false)
     })

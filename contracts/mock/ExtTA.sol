@@ -8,6 +8,7 @@ contract ExtTA is TradeAccounting {
         address kyberProxyAddress, 
         address snxAddress,
         address susdAddress,
+        address usdcAddress,
         bytes32[2] memory synthSymbols, 
         address[2] memory setComponentAddresses
     ) public TradeAccounting(
@@ -15,6 +16,7 @@ contract ExtTA is TradeAccounting {
         kyberProxyAddress, 
         snxAddress,
         susdAddress,
+        usdcAddress,
         synthSymbols, 
         setComponentAddresses
     ) {}
