@@ -99,11 +99,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
         .mul(DEC_18)
         .div(bn(issuanceRatio))
 
-      const snxToSell = bn(nonEscrowedSnxVal).mul(tokensToRedeem).div(bn(totalSupply))
-      const snxRateAndTime = await exchangeRates.rateAndUpdatedTime(
-        web3.utils.fromAscii('SNX'),
-      )
-      const valueOfSnxToSell = snxToSell.mul(bn(snxRateAndTime[0])).div(DEC_18)
+      const valueOfSnxToSell = bn(nonEscrowedSnxVal).mul(tokensToRedeem).div(bn(totalSupply))
       const susdToBurn = bn(lockedSnxValue)
         .add(valueOfSnxToSell)
         .sub(nonEscrowedSnxVal)

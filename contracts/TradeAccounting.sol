@@ -111,6 +111,7 @@ contract TradeAccounting is Whitelist {
     constructor(
         address _setAddress,
         address _kyberProxyAddress,
+        address _addressResolver,
         address _snxAddress,
         address _susdAddress,
         address _usdcAddress,
@@ -119,6 +120,7 @@ contract TradeAccounting is Whitelist {
     ) public {
         setAddress = _setAddress;
         kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
+        addressResolver = IAddressResolver(_addressResolver);
         snxAddress = _snxAddress;
         susdAddress = _susdAddress;
         usdcAddress = _usdcAddress;
@@ -243,7 +245,12 @@ contract TradeAccounting is Whitelist {
         uint256 _amount,
         uint256 _minReturn
     ) private {
-        curveFi.exchange_underlying(_inputIndex, _outputIndex, _amount, _minReturn);
+        curveFi.exchange_underlying(
+            _inputIndex,
+            _outputIndex,
+            _amount,
+            _minReturn
+        );
     }
 
     function getUsdcBalance() internal view returns (uint256) {
@@ -762,15 +769,14 @@ contract TradeAccounting is Whitelist {
         uint256 lockedSnxValue = contractDebtValue.mul(DEC_18).div(
             issuanceRatio
         );
-        uint256 snxToSell = nonEscrowedSnxValue.mul(tokensToRedeem).div(
+        uint256 valueOfSnxToSell = nonEscrowedSnxValue.mul(tokensToRedeem).div(
             totalSupply
         );
-        uint256 valueOfSnxToSell = snxToSell.mul(getSnxPrice()).div(DEC_18);
         susdToBurn = (
             lockedSnxValue.add(valueOfSnxToSell).sub(nonEscrowedSnxValue)
         )
             .mul(issuanceRatio)
-            .div(DEC_18);   
+            .div(DEC_18);
     }
 
     /* ========================================================================================= */
@@ -988,13 +994,6 @@ contract TradeAccounting is Whitelist {
     bytes32 constant synthetixStateName = "SynthetixState";
     bytes32 constant exchangeRatesName = "ExchangeRates";
     bytes32 constant synthetixName = "Synthetix";
-
-    function setAddressResolverAddress(address _addressResolver)
-        public
-        onlyOwner
-    {
-        addressResolver = IAddressResolver(_addressResolver);
-    }
 
     function setSynthetixStateAddress() public onlyOwner {
         address synthetixStateAddress = addressResolver.getAddress(

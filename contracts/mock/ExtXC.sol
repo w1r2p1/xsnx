@@ -9,12 +9,18 @@ contract ExtXC is xSNXCore {
         address payable _tradeAccountingAddress, 
         address _setAddress, 
         address _snxAddress, 
-        address _susdAddress
+        address _susdAddress,
+        address _setTransferProxy,
+        address _addressResolver,
+        address _rebalancingModule
     ) public xSNXCore(
         _tradeAccountingAddress, 
         _setAddress,
         _snxAddress,
-        _susdAddress
+        _susdAddress,
+        _setTransferProxy,
+        _addressResolver,
+        _rebalancingModule
     ) {
 
     }
