@@ -70,7 +70,7 @@ contract MockSynthetix is MockERC20 {
     }
 
     function collateralisationRatio(address account) public view returns(uint) {
-        uint snxVal = balanceOf(account).mul(snxPrice).div(DEC_18); // 10e18 * 1e18 / 1e18 = 10e18
+        uint snxVal = balanceOf(account).mul(snxPrice).div(DEC_18);
         uint debtVal = accountDebt[account];
         return debtVal.mul(DEC_18).div(snxVal);
     }

@@ -5,7 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract MockRewardEscrow {
     address snxAddress;
     uint vestedBal = 0;
-    uint balance = 1e18; 
+    uint balance = 0; 
+    // uint balance = 1e18; 
     function balanceOf(address account) public view returns (uint) {
         return balance;
     }

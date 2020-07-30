@@ -12,6 +12,7 @@ const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
+const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 
 const toWei = web3.utils.toWei
 
@@ -31,10 +32,11 @@ contract('xSNXCore: Minting', async (accounts) => {
     rebalancingModule = await MockRebalancingModule.deployed()
     exchangeRates = await MockExchangeRates.deployed()
     curve = await MockCurveFi.deployed()
+    rewardEscrow = await MockRewardEscrow.deployed()
   })
 
   describe('NAV calculations on issuance', async () => {
-    it('should correctly calculate NAV on issuance', async () => {
+    it('should correctly calculate NAV on issuance w/ no escrowed bal', async () => {
       await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
@@ -67,7 +69,9 @@ contract('xSNXCore: Minting', async (accounts) => {
 
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const debtValue = await tradeAccounting.extGetContractDebtValue()
-      const debtValueInWei = await tradeAccounting.extCalculateDebtValueInWei(debtValue) 
+      const debtValueInWei = await tradeAccounting.extCalculateDebtValueInWei(
+        debtValue,
+      )
 
       const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
       const snxBalanceBefore = await tradeAccounting.getSnxBalance()
@@ -82,11 +86,40 @@ contract('xSNXCore: Minting', async (accounts) => {
       )
       assertBNEqual(
         navOnMint,
-        bn(snxTokenValueInWei).add(bn(nonSnxAssetValue)).sub(bn(debtValueInWei)),
+        bn(snxTokenValueInWei)
+          .add(bn(nonSnxAssetValue))
+          .sub(bn(debtValueInWei)),
+      )
+    })
+    it('should correctly calculate NAV on issuance w/ escrowed bal', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
+      const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
+      const debtValue = await tradeAccounting.extGetContractDebtValue()
+      const debtValueInWei = await tradeAccounting.extCalculateDebtValueInWei(
+        debtValue,
+      )
+
+      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
+      const snxBalanceBefore = await tradeAccounting.getSnxBalance()
+      const snxTokenValueInWei = bn(snxBalanceBefore)
+        .mul(bn(weiPerOneSnx))
+        .div(bn(DEC_18))
+
+      const navOnMint = await tradeAccounting.extCalculateNetAssetValueOnMint(
+        weiPerOneSnx,
+        snxBalanceBefore,
+        nonSnxAssetValue,
+      )
+      assertBNEqual(
+        navOnMint,
+        bn(snxTokenValueInWei)
+          .add(bn(nonSnxAssetValue))
+          .sub(bn(debtValueInWei)),
       )
     })
 
-    it('should correctly calculate number of tokens to mint with ETH', async () => {
+    it('should correctly calculate number of tokens to mint with ETH w/ no escrow bal', async () => {
+      await rewardEscrow.setBalance('0')
       await synthetix.transfer(kyberProxy.address, toWei('100'))
       await xsnx.mint(0, { value: toWei('0.01') })
 
@@ -122,7 +155,82 @@ contract('xSNXCore: Minting', async (accounts) => {
       assertBNEqual(tokensToMint, contractTokensToMint)
     })
 
-    it('should correctly calculate number of tokens to mint with SNX', async () => {
+    it('should correctly calculate number of tokens to mint with ETH w/ escrow bal', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
+      await synthetix.transfer(kyberProxy.address, toWei('100'))
+      await xsnx.mint(0, { value: toWei('0.01') })
+
+      const totalSupply = await xsnx.totalSupply()
+      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
+
+      const feeDivisor = await xsnx.feeDivisors()
+      const snxAmountAcquiredExFee = toWei('10')
+      const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisor.mintFee))
+      const snxAcquired = bn(snxAmountAcquiredExFee).sub(fee)
+
+      await synthetix.transfer(xsnx.address, snxAcquired)
+      const ethContribution = toWei('0.1')
+
+      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
+
+      const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
+      const navOnMint = await tradeAccounting.extCalculateNetAssetValueOnMint(
+        weiPerOneSnx,
+        snxBalanceBefore,
+        nonSnxAssetValue,
+      )
+      const pricePerToken = navOnMint.mul(DEC_18).div(bn(totalSupply))
+      const tokensToMint = bn(ethContribution).mul(DEC_18).div(pricePerToken)
+
+      const contractTokensToMint = await tradeAccounting.calculateTokensToMintWithEth(
+        snxBalanceBefore,
+        ethContribution,
+        nonSnxAssetValue,
+        totalSupply,
+      )
+
+      assertBNEqual(tokensToMint, contractTokensToMint)
+    })
+
+    it('should correctly calculate number of tokens to mint with SNX w/ no escrowed bal', async () => {
+      await rewardEscrow.setBalance('0')
+      const totalSupply = await xsnx.totalSupply()
+      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
+      const snxToSend = toWei('10')
+
+      const snxUsdObj = await exchangeRates.rateAndUpdatedTime(
+        web3.utils.fromAscii('SNX'),
+      )
+      const snxUsd = snxUsdObj[0]
+      const ethUsdObj = await exchangeRates.rateAndUpdatedTime(
+        web3.utils.fromAscii('sETH'),
+      )
+      const ethUsd = ethUsdObj[0]
+      const weiPerOneSnx = bn(snxUsd).mul(DEC_18).div(bn(ethUsd))
+      const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxToSend)).div(DEC_18)
+      const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
+
+      const pricePerToken = await tradeAccounting.calculateIssueTokenPrice(
+        weiPerOneSnx,
+        snxBalanceBefore,
+        nonSnxAssetValue,
+        totalSupply,
+      )
+
+      const expectedTokensToMint = proxyEthUsedForSnx
+        .mul(DEC_18)
+        .div(bn(pricePerToken))
+
+      const contractTokensToMint = await tradeAccounting.calculateTokensToMintWithSnx(
+        snxBalanceBefore,
+        snxToSend,
+        totalSupply,
+      )
+
+      assertBNEqual(expectedTokensToMint, contractTokensToMint)
+    })
+    it('should correctly calculate number of tokens to mint with SNX w/ escrowed bal', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
       const totalSupply = await xsnx.totalSupply()
       const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
       const snxToSend = toWei('10')
@@ -179,10 +287,11 @@ contract('xSNXCore: Minting', async (accounts) => {
     it('should buy SNX with ETH', async () => {
       await xsnx.unpause({ from: deployerAccount })
       await synthetix.transfer(kyberProxy.address, toWei('100'))
+      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
       await xsnx.mint(0, { value: ethValue, from: account1 })
 
-      const xsnxBalSnx = await synthetix.balanceOf(xsnx.address)
-      assert.equal(xsnxBalSnx.gt(BN_ZERO), true)
+      const snxBalanceAfter = await synthetix.balanceOf(xsnx.address)
+      assert.equal(snxBalanceAfter.gt(snxBalanceBefore), true)
     })
 
     it('should issue xSNX token to minter', async () => {
@@ -212,7 +321,11 @@ contract('xSNXCore: Minting', async (accounts) => {
       await weth.transfer(kyberProxy.address, toWei('60'))
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
-      const amountSusd = bn(snxValueHeld).div(bn(9)) // 900% c-ratio
+      const debtBalance = await synthetix.debtBalanceOf(
+        xsnx.address,
+        web3.utils.fromAscii('sUSD'),
+      )
+      const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
@@ -257,7 +370,56 @@ contract('xSNXCore: Minting', async (accounts) => {
 
   describe('NAV calculations on Redemption', async () => {
     // equal to NAV on issuance, less value of escrowed SNX
-    it('should correctly calculate NAV on redemption', async () => {
+    it('should correctly calculate NAV on redemption w/ no escrowed bal', async () => {
+      await rewardEscrow.setBalance('0')
+      await setToken.transfer(rebalancingModule.address, toWei('20'))
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        value: toWei('1'),
+        to: kyberProxy.address,
+      })
+      await susd.transfer(synthetix.address, toWei('1000'))
+      await weth.transfer(kyberProxy.address, toWei('60'))
+      await synthetix.transfer(kyberProxy.address, toWei('1000'))
+
+      await xsnx.mint(0, { value: toWei('0.01') })
+      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const debtBalance = await synthetix.debtBalanceOf(
+        xsnx.address,
+        web3.utils.fromAscii('sUSD'),
+      )
+      const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+
+      await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation)
+
+      const {
+        weiPerOneSnx,
+        snxBalanceOwned,
+        contractDebtValueInWei,
+      } = await getCalculateRedeemNavInputs()
+      const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
+
+      const contractNavOnRedeem = await tradeAccounting.extCalculateNetAssetValueOnRedeem(
+        weiPerOneSnx,
+        snxBalanceOwned,
+        contractDebtValueInWei,
+      )
+
+      const snxTokenValueInWei = bn(snxBalanceOwned)
+        .mul(bn(weiPerOneSnx))
+        .div(DEC_18)
+      const navOnRedeem = snxTokenValueInWei
+        .add(bn(nonSnxAssetValue))
+        .sub(bn(contractDebtValueInWei))
+
+      assertBNEqual(contractNavOnRedeem, navOnRedeem)
+    })
+    it('should correctly calculate NAV on redemption w/ escrowed bal', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
       await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
@@ -305,30 +467,8 @@ contract('xSNXCore: Minting', async (accounts) => {
       assertBNEqual(contractNavOnRedeem, navOnRedeem)
     })
 
-    it('should correctly calculate value of ETH to distribute per token redeemed', async () => {
-      await setToken.transfer(rebalancingModule.address, toWei('20'))
-      await web3.eth.sendTransaction({
-        from: deployerAccount,
-        value: toWei('1'),
-        to: kyberProxy.address,
-      })
-      await susd.transfer(synthetix.address, toWei('500'))
-      await weth.transfer(kyberProxy.address, toWei('60'))
-      await synthetix.transfer(kyberProxy.address, toWei('1000'))
-      await xsnx.mint(0, { value: toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-
-      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
-      const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
-        web3.utils.fromAscii('sUSD'),
-      )
-      const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
-      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
-        amountSusd,
-      )
-
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation)
+    it('should correctly calculate value of ETH to distribute per token redeemed w/ no escrowed bal', async () => {
+      await rewardEscrow.setBalance('0')
 
       const {
         weiPerOneSnx,
@@ -354,7 +494,58 @@ contract('xSNXCore: Minting', async (accounts) => {
       assertBNEqual(pricePerToken, contractPricePerToken)
     })
 
-    it('should correctly calculate total redemption value for a given number of tokens', async () => {
+    it('should correctly calculate value of ETH to distribute per token redeemed w/ escrowed bal', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
+      const {
+        weiPerOneSnx,
+        snxBalanceOwned,
+        contractDebtValue,
+        contractDebtValueInWei,
+      } = await getCalculateRedeemNavInputs()
+
+      const navOnRedeem = await tradeAccounting.extCalculateNetAssetValueOnRedeem(
+        weiPerOneSnx,
+        snxBalanceOwned,
+        contractDebtValueInWei,
+      )
+      const totalSupply = await xsnx.totalSupply()
+
+      const pricePerToken = bn(navOnRedeem).mul(DEC_18).div(bn(totalSupply))
+      const contractPricePerToken = await tradeAccounting.extCalculateRedeemTokenPrice(
+        totalSupply,
+        snxBalanceOwned,
+        contractDebtValue,
+      )
+
+      assertBNEqual(pricePerToken, contractPricePerToken)
+    })
+
+    it('should correctly calculate total redemption value for a given number of tokens w/ no escrow bal', async () => {
+      await rewardEscrow.setBalance('0')
+      const {
+        weiPerOneSnx,
+        snxBalanceOwned,
+        contractDebtValue,
+      } = await getCalculateRedeemNavInputs()
+
+      const totalSupply = await xsnx.totalSupply()
+      const tokensToRedeem = bn(totalSupply).div(bn(1000))
+      const pricePerToken = await tradeAccounting.extCalculateRedeemTokenPrice(
+        totalSupply,
+        snxBalanceOwned,
+        contractDebtValue,
+      )
+      const valueToRedeem = bn(pricePerToken).mul(tokensToRedeem).div(DEC_18)
+
+      const contractValueToRedeem = await tradeAccounting.calculateRedemptionValue(
+        totalSupply,
+        tokensToRedeem,
+      )
+      assertBNEqual(valueToRedeem, contractValueToRedeem)
+    })
+
+    it('should correctly calculate total redemption value for a given number of tokens w/ escrow bal', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
       const {
         weiPerOneSnx,
         snxBalanceOwned,

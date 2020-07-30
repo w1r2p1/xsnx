@@ -194,7 +194,7 @@ contract(
         await tradeAccounting.addToWhitelist(account1)
 
         const ethPayable = web3.utils.toWei('0.01')
-        const ethSnxRate = bn(200)
+        const ethSnxRate = bn(100)
         const expectedSnxBought = bn(ethPayable).mul(ethSnxRate) // no fee extracted
         const snxBalanceBefore = await tradeAccounting.getSnxBalance()
         await xsnx.mint('0', { value: ethPayable, from: account1 })
