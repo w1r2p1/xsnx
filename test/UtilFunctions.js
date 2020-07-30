@@ -39,23 +39,6 @@ contract(
     describe('Address Setters', async () => {
       // setters executed in deployment script
       // but difficult to test private variable setters directly
-      it('should be able to set the address resolver address', async () => {
-        await xsnx.setAddressResolverAddress(addressResolver.address)
-        assert(true)
-      })
-
-      it('should be able to set the rebalancing module address on xSNX', async () => {
-        await xsnx.setRebalancingSetIssuanceModuleAddress(
-          rebalancingModule.address,
-        )
-        assert(true)
-      })
-
-      it('should be able to set the rebalancing module address on TradeAccounting', async () => {
-        await tradeAccounting.setAddressResolverAddress(addressResolver.address)
-        assert(true)
-      })
-
       it('should be able to set the Synthetix State address on TradeAccounting', async () => {
         await tradeAccounting.setSynthetixStateAddress()
         assert(true)
@@ -74,38 +57,6 @@ contract(
 
     describe('ERC20 approvals', async () => {
       // approves executed in deployment script
-      it('should approve TradeAccounting to spend SNX belonging to xSNX', async () => {
-        const approved = await synthetix.allowance(
-          xsnx.address,
-          tradeAccounting.address,
-        )
-        assert.equal(approved.gt(BN_ZERO), true)
-      })
-
-      it('should approve TradeAccounting to spend sUSD belonging to xSNX', async () => {
-        const approved = await susd.allowance(
-          xsnx.address,
-          tradeAccounting.address,
-        )
-        assert.equal(approved.gt(BN_ZERO), true)
-      })
-
-      it('should approve TradeAccounting to spend Set Asset #1 belonging to xSNX', async () => {
-        const approved = await weth.allowance(
-          xsnx.address,
-          tradeAccounting.address,
-        )
-        assert.equal(approved.gt(BN_ZERO), true)
-      })
-
-      it('should approve TradeAccounting to spend Set Asset #2 belonging to xSNX', async () => {
-        const approved = await usdc.allowance(
-          xsnx.address,
-          tradeAccounting.address,
-        )
-        assert.equal(approved.gt(BN_ZERO), true)
-      })
-
       it('should approve Kyber to spend SNX belonging to TradeAccounting', async () => {
         const approved = await synthetix.allowance(
           tradeAccounting.address,
@@ -166,10 +117,6 @@ contract(
     })
 
     describe('Vesting', async () => {
-      it('should revert if there is no vested balance on the reward escrow contract', async () => {
-        await truffleAssert.reverts(xsnx.vest(), 'No vesting rewards available')
-      })
-
       it('should result in greater SNX balance in the contract if executed successfully', async () => {
         const snxBalanceBefore = await tradeAccounting.getSnxBalance()
         await synthetix.transfer(rewardEscrow.address, web3.utils.toWei('2'))

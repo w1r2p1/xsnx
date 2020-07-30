@@ -19,6 +19,8 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     address private setAddress;
     address private snxAddress;
 
+    address private setTransferProxy;
+
     bytes32 constant susd = "sUSD";
 
     bytes32 constant feePoolName = "FeePool";
@@ -68,12 +70,18 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         address payable _tradeAccountingAddress,
         address _setAddress,
         address _snxAddress,
-        address _susdAddress
+        address _susdAddress,
+        address _setTransferProxy,
+        address _addressResolver,
+        address _rebalancingModule
     ) public ERC20Detailed("xSNX", "xSNXa", 18) {
         tradeAccounting = TradeAccounting(_tradeAccountingAddress);
         setAddress = _setAddress;
         snxAddress = _snxAddress;
         susdAddress = _susdAddress;
+        setTransferProxy = _setTransferProxy;
+        addressResolver = IAddressResolver(_addressResolver);
+        rebalancingModule = IRebalancingSetIssuanceModule(_rebalancingModule);
     }
 
     /* ========================================================================================= */
@@ -458,30 +466,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         IRewardEscrow rewardEscrow = IRewardEscrow(
             addressResolver.getAddress(rewardEscrowName)
         );
-        require(
-            rewardEscrow.totalVestedAccountBalance(address(this)) > 0,
-            "No vesting rewards available"
-        );
         rewardEscrow.vest();
-    }
-
-    /* ========================================================================================= */
-    /*                                    Address Setters                                        */
-    /* ========================================================================================= */
-
-    // pass ProxyAddressResolver
-    function setAddressResolverAddress(address _addressResolver)
-        public
-        onlyOwner
-    {
-        addressResolver = IAddressResolver(_addressResolver);
-    }
-
-    function setRebalancingSetIssuanceModuleAddress(address _rebalancingModule)
-        public
-        onlyOwner
-    {
-        rebalancingModule = IRebalancingSetIssuanceModule(_rebalancingModule);
     }
 
     /* ========================================================================================= */
@@ -585,17 +570,9 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         emit WithdrawFees(ethFeesToWithdraw, susdFeesToWithdraw);
     }
 
-    // need to approve [snx, susd, setComponentA, setComponentB]
-    function approveTradeAccounting(address tokenAddress) public onlyOwner {
-        IERC20(tokenAddress).approve(address(tradeAccounting), MAX_UINT);
-    }
-
-    // need to approve [setComponentA, setComponentB]
-    function approveSetTransferProxy(
-        address tokenAddress,
-        address transferProxy
-    ) public onlyOwner {
-        IERC20(tokenAddress).approve(transferProxy, MAX_UINT);
+    // approve [setComponentA, setComponentB] on deployment
+    function approveSetTransferProxy(address tokenAddress) public onlyOwner {
+        IERC20(tokenAddress).approve(setTransferProxy, MAX_UINT);
     }
 
     function() external payable {}
