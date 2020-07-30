@@ -799,16 +799,14 @@ contract TradeAccounting is Whitelist {
             issuanceRatio
         );
 
-
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
 
         uint256 hedgeAssetsValueInUsd = calculateHedgeAssetsValueInUsd();
         uint256 valueToUnlockInUsd = debtValueInUsd.sub(hedgeAssetsValueInUsd);
-        uint256 targetIssuanceRatio = getIssuanceRatio();
 
         uint256 susdToBurnToUnlockTransfer = valueToUnlockInUsd
-            .mul(targetIssuanceRatio)
+            .mul(issuanceRatio)
             .div(DEC_18);
 
         totalSusdToBurn = (
