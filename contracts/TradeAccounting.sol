@@ -289,26 +289,24 @@ contract TradeAccounting is Whitelist {
         returns (bool allocateToEth, uint256 nonSnxAssetValue)
     {
         uint256 setHoldingsInWei = getSetHoldingsValueInWei();
-        uint256 ethBal = getEthBalance();
+        uint256 ethBalBefore = getEthBalance().sub(ethContribution);
 
         allocateToEth = shouldAllocateEthToEthReserve(
             ethContribution,
             setHoldingsInWei,
-            ethBal,
+            ethBalBefore,
             totalSupply
         );
-        nonSnxAssetValue = setHoldingsInWei.add(ethBal);
+        nonSnxAssetValue = setHoldingsInWei.add(ethBalBefore);
     }
 
     function shouldAllocateEthToEthReserve(
         uint256 ethContribution,
         uint256 setHoldingsInWei,
-        uint256 ethBal,
+        uint256 ethBalBefore,
         uint256 totalSupply
     ) public pure returns (bool allocateToEth) {
         if (totalSupply == 0) return false;
-
-        uint256 ethBalBefore = ethBal.sub(ethContribution);
 
         if (ethBalBefore.mul(ETH_TARGET) < ethBalBefore.add(setHoldingsInWei)) {
             // ETH reserve is under target
@@ -690,21 +688,6 @@ contract TradeAccounting is Whitelist {
                 caller,
                 susd
             );
-    }
-
-    function isContractOverCollateralizationRatio() public view returns (bool) {
-        if (getCollateralizationRatio() == 0) return true;
-        return
-            DEC_18.div(getIssuanceRatio()) <
-            DEC_18.div(getCollateralizationRatio());
-    }
-
-    // returns inverse of contract's C-RATIO
-    function getCollateralizationRatio() internal view returns (uint256) {
-        if (getSnxBalance() == 0) return 0;
-        return
-            ISynthetix(addressResolver.getAddress(synthetixName))
-                .collateralisationRatio(caller);
     }
 
     // returns inverse of target C-RATIO

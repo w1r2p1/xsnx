@@ -15,6 +15,7 @@ const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
+const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 
 contract('xSNXCore: Claim', async (accounts) => {
   const [deployerAccount, account1] = accounts
@@ -34,6 +35,7 @@ contract('xSNXCore: Claim', async (accounts) => {
     rebalancingModule = await MockRebalancingModule.deployed()
     synthetixState = await MockSynthetixState.deployed()
     curve = await MockCurveFi.deployed()
+    rewardEscrow = await MockRewardEscrow.deployed()
 
     await susd.transfer(feePool.address, web3.utils.toWei('5'))
     await weth.transfer(rebalancingModule.address, web3.utils.toWei('5'))
@@ -42,7 +44,7 @@ contract('xSNXCore: Claim', async (accounts) => {
   describe('Claiming fees/rewards', async (accounts) => {
     it('should revert if called from non owner', async () => {
       await truffleAssert.reverts(
-        xsnx.claim(0, [0, 0], [0,0], true, { from: account1 }),
+        xsnx.claim(0, [0, 0], [0, 0], true, { from: account1 }),
         'Ownable: caller is not the owner',
       )
     })
@@ -62,12 +64,12 @@ contract('xSNXCore: Claim', async (accounts) => {
 
     it('should exchange sUSD for ETH on successful claim', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
-      await xsnx.claim(0, [0, 0], [0,0], true, { from: deployerAccount })
+      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
       const ethBalAfter = await tradeAccounting.getEthBalance()
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
     })
 
-    it('should fix c-ratio before claiming if collateralization is below', async () => {
+    it('should fix c-ratio before claiming if collateralization is below (w/ no escrowed bal)', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
       await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
       await web3.eth.sendTransaction({
@@ -84,7 +86,8 @@ contract('xSNXCore: Claim', async (accounts) => {
 
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
-      const amountSusd = bn(snxValueHeld).div(bn(9)) // 900% c-ratio
+      let amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
+      amountSusd = amountSusd.sub(bn(1)) // to satisfy isFeesClaimable
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
@@ -99,10 +102,42 @@ contract('xSNXCore: Claim', async (accounts) => {
       await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.02'))
 
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
+      assertBNEqual(susdToBurnCollat.gt(BN_ZERO), true) // i.e., fees should be unclaimable until susd burn
 
-      await xsnx.claim(susdToBurnCollat, [0, 0], [0,0], true, {
+      await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
         from: deployerAccount,
       })
+      const debtAfter = await tradeAccounting.extGetContractDebtValue()
+
+      const ratioAfter = bn(snxValueHeld).div(bn(debtAfter))
+
+      // confirm that ratio was fixed
+      assertBNEqual(ratioAfter, bn(8))
+
+      // sUSD is immediately exchanged for ETH on claims so a
+      // higher ETH balance signifies a successful claim
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+      assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
+    })
+
+    it('should fix c-ratio before claiming if collateralization is below (w/ escrowed bal)', async () => {
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
+      await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.2'))
+
+      const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
+      assertBNEqual(susdToBurnCollat.gt(BN_ZERO), true) // i.e., fees should be unclaimable until susd burn
+
+      await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
+        from: deployerAccount,
+      })
+
+      const debtAfter = await tradeAccounting.extGetContractDebtValue()
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const ratioAfter = bn(snxValueHeld).div(bn(debtAfter))
+
+      // confirm that ratio was fixed
+      assertBNEqual(ratioAfter, bn(8))
 
       // sUSD is immediately exchanged for ETH on claims so a
       // higher ETH balance signifies a successful claim
@@ -124,7 +159,10 @@ contract('xSNXCore: Claim', async (accounts) => {
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
-      const debtBalance = await synthetix.debtBalanceOf(xsnx.address, web3.utils.fromAscii('sUSD'))
+      const debtBalance = await synthetix.debtBalanceOf(
+        xsnx.address,
+        web3.utils.fromAscii('sUSD'),
+      )
       const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
@@ -141,7 +179,7 @@ contract('xSNXCore: Claim', async (accounts) => {
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
       assertBNEqual(susdToBurnCollat, BN_ZERO)
 
-      await xsnx.claim(susdToBurnCollat, [0, 0], [0,0], true, {
+      await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], true, {
         from: deployerAccount,
       })
 

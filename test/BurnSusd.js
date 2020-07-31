@@ -30,7 +30,15 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
   })
 
   describe('Calculating sUSD to Burn', async () => {
-    it('should calculate sUSD to burn to fix ratio', async () => {
+    it('should calculate sUSD to burn to fix ratio with no escrowed balance', async () => {
+      const debtToBurn = web3.utils.toWei('0.05') // 800% c-ratio
+      const susdToFixRatio = await calculateSusdToFixRatio()
+
+      assertBNEqual(bn(debtToBurn), susdToFixRatio)
+    })
+
+    it('should calculate sUSD to burn to fix ratio with escrowed balance', async () => {
+      await rewardEscrow.setBalance(web3.utils.toWei('1'))
       const debtToBurn = web3.utils.toWei('0.05') // 800% c-ratio
       const susdToFixRatio = await calculateSusdToFixRatio()
 
@@ -68,7 +76,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
 
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
-      const amountSusd = bn(snxValueHeld).div(bn(9)) // 900% c-ratio
+      const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )

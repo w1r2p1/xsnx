@@ -121,7 +121,7 @@ contract(
         const snxBalanceBefore = await tradeAccounting.getSnxBalance()
         await synthetix.transfer(rewardEscrow.address, web3.utils.toWei('2'))
         await rewardEscrow.setSnxAddress(synthetix.address)
-        await rewardEscrow.setVestedBalance(web3.utils.toWei('1'))
+        await rewardEscrow.setBalance(web3.utils.toWei('1'))
         await xsnx.vest()
         const snxBalanceAfter = await tradeAccounting.getSnxBalance()
 
@@ -194,7 +194,7 @@ contract(
         await tradeAccounting.addToWhitelist(account1)
 
         const ethPayable = web3.utils.toWei('0.01')
-        const ethSnxRate = bn(200)
+        const ethSnxRate = bn(100)
         const expectedSnxBought = bn(ethPayable).mul(ethSnxRate) // no fee extracted
         const snxBalanceBefore = await tradeAccounting.getSnxBalance()
         await xsnx.mint('0', { value: ethPayable, from: account1 })

@@ -73,9 +73,6 @@ contract ExtTA is TradeAccounting {
     function extCalculateDebtValueInWei(uint debtValue) public view returns(uint){
         return calculateDebtValueInWei(debtValue);
     }
-    function extGetCollateralizationRatio() public view returns(uint){
-        return getCollateralizationRatio();
-    }
     function extGetIssuanceRatio() public view returns(uint){
         return getIssuanceRatio();
     }
