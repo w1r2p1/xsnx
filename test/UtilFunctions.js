@@ -121,7 +121,7 @@ contract(
         const snxBalanceBefore = await tradeAccounting.getSnxBalance()
         await synthetix.transfer(rewardEscrow.address, web3.utils.toWei('2'))
         await rewardEscrow.setSnxAddress(synthetix.address)
-        await rewardEscrow.setVestedBalance(web3.utils.toWei('1'))
+        await rewardEscrow.setBalance(web3.utils.toWei('1'))
         await xsnx.vest()
         const snxBalanceAfter = await tradeAccounting.getSnxBalance()
 
