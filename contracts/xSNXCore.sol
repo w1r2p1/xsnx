@@ -180,6 +180,22 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*                                   Fund Management                                         */
     /* ========================================================================================= */
 
+    modifier curveIsNotInWaitingPeriod {
+        require(
+            !tradeAccounting.isCurveInWaitingPeriod(block.timestamp),
+            "Is waiting period"
+        );
+        _;
+    }
+
+    modifier isNotBreathingPeriod {
+        require(
+            block.timestamp > lastStakedTimestamp.add(BREATHING_PERIOD),
+            "Is breathing period"
+        );
+        _;
+    }
+
     /*
      * @notice Hedge strategy management function callable by admin
      * @dev Issues synths on Synthetix
@@ -196,7 +212,13 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minCurveReturns,
         address activeAsset,
         uint256 ethAllocation
-    ) external onlyOwner whenNotPaused {
+    )
+        external
+        onlyOwner
+        whenNotPaused
+        curveIsNotInWaitingPeriod
+        isNotBreathingPeriod
+    {
         _stake(mintAmount);
 
         _allocateToEth(ethAllocation, minKyberRates[0], minCurveReturns[0]);
@@ -241,7 +263,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         bool feesClaimable
-    ) external onlyOwner {
+    ) external onlyOwner curveIsNotInWaitingPeriod {
         IFeePool feePool = IFeePool(addressResolver.getAddress(feePoolName));
 
         if (!feesClaimable) {
@@ -356,7 +378,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwner {
+    ) external onlyOwner curveIsNotInWaitingPeriod {
         require(
             tradeAccounting.isRebalanceTowardsHedgeRequired(),
             "Rebalance unnecessary"
@@ -420,7 +442,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwner {
+    ) external onlyOwner curveIsNotInWaitingPeriod isNotBreathingPeriod {
         _unwindStakedPosition(
             totalSusdToBurn,
             activeAsset,

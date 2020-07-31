@@ -80,6 +80,7 @@ contract TradeAccounting is Whitelist {
     uint256 private constant RATE_STALE_TIME = 3600; // 1 hour
     uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
+    uint256 private constant CURVE_UPDATE_WAITING_PERIOD = 1 days;
 
     int128 USDC_INDEX = 1;
     int128 SUSD_INDEX = 3;
@@ -99,6 +100,9 @@ contract TradeAccounting is Whitelist {
     address private setAddress;
     address private susdAddress;
     address private usdcAddress;
+
+    bool private isCurveSet;
+    uint256 private curveAddressUpdatedTimestamp;
 
     bytes32 constant snx = "SNX";
     bytes32 constant susd = "sUSD";
@@ -162,10 +166,8 @@ contract TradeAccounting is Whitelist {
         if (fromToken == susdAddress) {
             _exchangeUnderlying(SUSD_INDEX, USDC_INDEX, amount, minCurveReturn);
 
-            uint256 usdcBal = getUsdcBalance();
-            require(usdcBal >= minCurveReturn, "Insufficient trade");
-
             if (toToken != usdcAddress) {
+                uint256 usdcBal = getUsdcBalance();
                 _swapTokenToToken(usdcAddress, usdcBal, toToken, minKyberRate);
             }
         } else if (toToken == susdAddress) {
@@ -180,9 +182,6 @@ contract TradeAccounting is Whitelist {
                 usdcBal,
                 minCurveReturn
             );
-
-            uint256 susdBal = getSusdBalance();
-            require(susdBal >= minCurveReturn, "Insufficient trade");
         } else {
             _swapTokenToToken(fromToken, amount, toToken, minKyberRate);
         }
@@ -215,9 +214,8 @@ contract TradeAccounting is Whitelist {
     ) public onlyCaller {
         if (fromToken == susdAddress) {
             _exchangeUnderlying(SUSD_INDEX, USDC_INDEX, amount, minCurveReturn);
-            uint256 usdcBal = getUsdcBalance();
-            require(usdcBal >= minCurveReturn, "Insufficient trade");
 
+            uint256 usdcBal = getUsdcBalance();
             _swapTokenToEther(usdcAddress, usdcBal, minKyberRate);
         } else {
             _swapTokenToEther(fromToken, amount, minKyberRate);
@@ -292,7 +290,6 @@ contract TradeAccounting is Whitelist {
         uint256 ethBalBefore = getEthBalance().sub(ethContribution);
 
         allocateToEth = shouldAllocateEthToEthReserve(
-            ethContribution,
             setHoldingsInWei,
             ethBalBefore,
             totalSupply
@@ -301,7 +298,6 @@ contract TradeAccounting is Whitelist {
     }
 
     function shouldAllocateEthToEthReserve(
-        uint256 ethContribution,
         uint256 setHoldingsInWei,
         uint256 ethBalBefore,
         uint256 totalSupply
@@ -782,6 +778,7 @@ contract TradeAccounting is Whitelist {
             issuanceRatio
         );
 
+
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
 
@@ -995,6 +992,15 @@ contract TradeAccounting is Whitelist {
     }
 
     function setCurveAddress(address _curvePoolAddress) public onlyOwner {
+        if (isCurveSet) {
+            // if updating Curve address (i.e., not initial setting of address on deployment),
+            // set timestamp which freezes all functions that touch Curve for CURVE_UPDATE_WAITING_PERIOD
+            curveAddressUpdatedTimestamp = block.timestamp;
+        } else {
+            // if initial set on deployment, toggle bool but don't set curveAddressUpdatedTimestamp
+            // to allow for Curve functionality to be available immediately
+            isCurveSet = true;
+        }
         curveFi = ICurveFi(_curvePoolAddress);
     }
 
@@ -1010,6 +1016,19 @@ contract TradeAccounting is Whitelist {
     // admin on deployment approve [susd, usdc]
     function approveCurve(address tokenAddress) public onlyOwner {
         IERC20(tokenAddress).approve(address(curveFi), MAX_UINT);
+    }
+
+    // if true, all functionality that touches Curve is disabled for CURVE_UPDATE_WAITING_PERIOD
+    function isCurveInWaitingPeriod(uint256 currentTimestamp)
+        public
+        view
+        returns (bool)
+    {
+        if (curveAddressUpdatedTimestamp == 0) return false;
+        if (
+            currentTimestamp.sub(CURVE_UPDATE_WAITING_PERIOD) <
+            curveAddressUpdatedTimestamp
+        ) return true;
     }
 
     function() external payable {}
