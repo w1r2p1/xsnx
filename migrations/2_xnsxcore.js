@@ -47,11 +47,7 @@ module.exports = async function (deployer, network, accounts) {
                   return deployer.deploy(MockWETH).then((weth) => {
                     return deployer.deploy(MockUSDC).then((usdc) => {
                       return deployer
-                        .deploy(
-                          MockCollateralSet,
-                          [weth.address, usdc.address],
-                          weth.address,
-                        )
+                        .deploy(MockCollateralSet, [weth.address, usdc.address])
                         .then((collateralSetToken) => {
                           return deployer
                             .deploy(MockSUSD)
@@ -97,6 +93,9 @@ module.exports = async function (deployer, network, accounts) {
                                           await rebalancingModule.setWethAddress(
                                             weth.address,
                                           )
+                                          await rebalancingModule.setUsdcAddress(
+                                            usdc.address,
+                                          )
                                           return deployer
                                             .deploy(MockCurveFi)
                                             .then(async (curveFi) => {
@@ -123,7 +122,7 @@ module.exports = async function (deployer, network, accounts) {
                                                         susd.address,
                                                         susd.address, // used as placeholder for setTransferProxy which isn't used in testing
                                                         addressResolver.address,
-                                                        rebalancingModule.address
+                                                        rebalancingModule.address,
                                                       )
                                                       .then(async (xsnx) => {
                                                         console.log(
@@ -135,6 +134,13 @@ module.exports = async function (deployer, network, accounts) {
                                                         )
                                                         console.log(
                                                           'xsnx: weth approved on rebalance module *mock purposes only*',
+                                                        )
+                                                        await xsnx.approveMock(
+                                                          rebalancingModule.address,
+                                                          usdc.address,
+                                                        )
+                                                        console.log(
+                                                          'xsnx: usdc approved on rebalance module *mock purposes only*',
                                                         )
                                                         await xsnx.approveMock(
                                                           rebalancingModule.address,
@@ -150,7 +156,7 @@ module.exports = async function (deployer, network, accounts) {
                                                         console.log(
                                                           'xsnx: susd approved on synthetix *mock purposes only*',
                                                         )
-                                                
+
                                                         // only testing
                                                         await feePool.setSusdAddress(
                                                           susd.address,
@@ -205,8 +211,12 @@ module.exports = async function (deployer, network, accounts) {
                                                         console.log(
                                                           'ta: approve kyber: set asset 2',
                                                         )
-                                                        await tradeAccounting.setCurveAddress(
+                                                        const USDC_CURVE_INDEX = 1
+                                                        const SUSD_CURVE_INDEX = 3
+                                                        await tradeAccounting.setCurve(
                                                           curveFi.address,
+                                                          USDC_CURVE_INDEX,
+                                                          SUSD_CURVE_INDEX,
                                                         )
                                                         console.log(
                                                           'ta: curve set',
@@ -223,8 +233,12 @@ module.exports = async function (deployer, network, accounts) {
                                                         console.log(
                                                           'ta: approve curve: usdc',
                                                         )
-                                                        await curveFi.setSusdAddress(susd.address)
-                                                        await curveFi.setUsdcAddress(usdc.address)
+                                                        await curveFi.setSusdAddress(
+                                                          susd.address,
+                                                        )
+                                                        await curveFi.setUsdcAddress(
+                                                          usdc.address,
+                                                        )
                                                       })
                                                   },
                                                 )
@@ -268,6 +282,9 @@ module.exports = async function (deployer, network, accounts) {
     )
     const SET_COMPONENT_ADDRESSES = [SET_ASSET_1, SET_ASSET_2]
 
+    const USDC_CURVE_INDEX = 1
+    const SUSD_CURVE_INDEX = 3
+
     return deployer
       .deploy(
         TradeAccounting,
@@ -290,7 +307,7 @@ module.exports = async function (deployer, network, accounts) {
             SUSD_ADDRESS,
             SET_TRANSFER_PROXY,
             ADDRESS_RESOLVER,
-            REBALANCING_MODULE
+            REBALANCING_MODULE,
           )
           .then(async (xsnx) => {
             console.log('xsnx deployed')
@@ -310,7 +327,11 @@ module.exports = async function (deployer, network, accounts) {
             console.log('ta: synth state set')
             await tradeAccounting.setExchangeRatesAddress()
             console.log('ta: exch rates set')
-            await tradeAccounting.setCurveAddress(CURVE_POOL)
+            await tradeAccounting.setCurve(
+              CURVE_POOL,
+              USDC_CURVE_INDEX,
+              SUSD_CURVE_INDEX,
+            )
             console.log('ta: curve set') // errored here
 
             await tradeAccounting.approveKyber(SNX_ADDRESS)

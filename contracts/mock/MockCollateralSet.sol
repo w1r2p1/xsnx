@@ -3,36 +3,40 @@ pragma solidity 0.5.15;
 import "./MockERC20.sol";
 
 contract MockCollateralSet is MockERC20 {
-    address activeAsset;
+    uint activeAssetIndex = 0;
 
     // [weth, usdc]
     address[] setAssets;
 
-    constructor(address[] memory _setAssets, address _activeAsset) public MockERC20("Collateral Set", "CollateralSet", 18, 1000e18) {
+    constructor(address[] memory _setAssets) public MockERC20("Collateral Set", "CollateralSet", 18, 1000e18) {
         setAssets = _setAssets;
-        activeAsset = _activeAsset;
     }
     function getUnits() public view returns (uint256[] memory units){
         units = new uint[](1);
+        if(activeAssetIndex == 0){
         // weth
-        if(activeAsset == setAssets[0]){
-        // usdc
-            units[0] = 2097152;
+            units[0] = 1577152;
         } else {
-            units[0] = 307;
+        // usdc
+            units[0] = 707;
         }
     }
     function naturalUnit() public view returns(uint){
-        if(activeAsset == setAssets[0]){
+        if(activeAssetIndex == 0){
             return 1000000;
         }
         return 1000000000000;
     }
     function getComponents() public view returns(address[] memory components){
         components = new address[](1);
-        components[0] = activeAsset;
+        components[0] = setAssets[activeAssetIndex];
     }
-    function setActiveAsset(uint index) public {
-        activeAsset = setAssets[index];
+
+    function toggleActiveAssetIndex() public {
+        if(activeAssetIndex == 0){
+            activeAssetIndex = 1;
+        } else {
+            activeAssetIndex = 0;
+        }
     }
 }

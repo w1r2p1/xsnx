@@ -37,7 +37,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
     await setToken.transfer(rebalancingModule.address, web3.utils.toWei('2'))
     await weth.transfer(kyberProxy.address, web3.utils.toWei('50'))
     await susd.transfer(curve.address, web3.utils.toWei('100'))
-    await usdc.transfer(curve.address, web3.utils.toWei('100'))
+    await usdc.transfer(curve.address, '1000000000')
   })
 
   describe('Staking and hedging', async () => {
@@ -63,7 +63,12 @@ contract('xSNXCore: Hedge function', async (accounts) => {
       const ethBalBefore = await web3.eth.getBalance(xsnx.address)
       await xsnx.mint('0', { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      await xsnx.hedge(1000000000, [0, 0], [0, 0], activeAsset, 250000000, {
+      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+      const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
+      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+        amountSusd,
+      )
+      await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation, {
         from: deployerAccount,
       })
       const ethBalAfter = await web3.eth.getBalance(xsnx.address)

@@ -180,14 +180,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*                                   Fund Management                                         */
     /* ========================================================================================= */
 
-    modifier curveIsNotInWaitingPeriod {
-        require(
-            !tradeAccounting.isCurveInWaitingPeriod(block.timestamp),
-            "Is waiting period"
-        );
-        _;
-    }
-
     modifier isNotBreathingPeriod {
         require(
             block.timestamp > lastStakedTimestamp.add(BREATHING_PERIOD),
@@ -212,13 +204,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minCurveReturns,
         address activeAsset,
         uint256 ethAllocation
-    )
-        external
-        onlyOwner
-        whenNotPaused
-        curveIsNotInWaitingPeriod
-        isNotBreathingPeriod
-    {
+    ) external onlyOwner whenNotPaused isNotBreathingPeriod {
         _stake(mintAmount);
 
         _allocateToEth(ethAllocation, minKyberRates[0], minCurveReturns[0]);
@@ -263,7 +249,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         bool feesClaimable
-    ) external onlyOwner curveIsNotInWaitingPeriod {
+    ) external onlyOwner {
         IFeePool feePool = IFeePool(addressResolver.getAddress(feePoolName));
 
         if (!feesClaimable) {
@@ -378,7 +364,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwner curveIsNotInWaitingPeriod {
+    ) external onlyOwner {
         require(
             tradeAccounting.isRebalanceTowardsHedgeRequired(),
             "Rebalance unnecessary"
@@ -397,9 +383,9 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*
      * @notice Callable whenever ETH bal is less than (hedgeAssets / ETH_TARGET)
      * @dev Rebalances Set holdings to ETH holdings
-     * @param tradeAccounting.calculateSetToSellForRebalanceSetToEth()
-     * @param getAssetCurrentlyActiveInSet()
-     * @param kyber.getExpectedRate(currentSetAsset => ETH)
+     * @param redemptionQuantity: tradeAccounting.calculateSetToSellForRebalanceSetToEth()
+     * @param activeAsset: getAssetCurrentlyActiveInSet()
+     * @param minKyberRate: kyber.getExpectedRate(currentSetAsset => ETH)
      */
     function rebalanceSetToEth(
         uint256 redemptionQuantity,
@@ -442,7 +428,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwner curveIsNotInWaitingPeriod isNotBreathingPeriod {
+    ) external onlyOwner isNotBreathingPeriod {
         _unwindStakedPosition(
             totalSusdToBurn,
             activeAsset,
