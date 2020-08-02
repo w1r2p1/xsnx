@@ -42,32 +42,32 @@ contract('xSNXCore: Claim', async (accounts) => {
   })
 
   describe('Claiming fees/rewards', async (accounts) => {
-    // it('should revert if called from non owner', async () => {
-    //   await truffleAssert.reverts(
-    //     xsnx.claim(0, [0, 0], [0, 0], true, { from: account1 }),
-    //     'Ownable: caller is not the owner',
-    //   )
-    // })
+    it('should revert if called from non owner', async () => {
+      await truffleAssert.reverts(
+        xsnx.claim(0, [0, 0], [0, 0], true, { from: account1 }),
+        'Ownable: caller is not the owner',
+      )
+    })
 
-    // it('should claim sUSD fees on claim', async () => {
-    //   await web3.eth.sendTransaction({
-    //     from: deployerAccount,
-    //     to: kyberProxy.address,
-    //     value: web3.utils.toWei('3'),
-    //   })
-    //   await susd.transfer(curve.address, web3.utils.toWei('100'))
-    //   await usdc.transfer(curve.address, '100000000')
-    //   await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
-    //   const withdrawableSusdFees = await xsnx.withdrawableSusdFees()
-    //   assertBNEqual(withdrawableSusdFees.gt(BN_ZERO), true)
-    // })
+    it('should claim sUSD fees on claim', async () => {
+      await web3.eth.sendTransaction({
+        from: deployerAccount,
+        to: kyberProxy.address,
+        value: web3.utils.toWei('3'),
+      })
+      await susd.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, '100000000')
+      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
+      const withdrawableSusdFees = await xsnx.withdrawableSusdFees()
+      assertBNEqual(withdrawableSusdFees.gt(BN_ZERO), true)
+    })
 
-    // it('should exchange sUSD for ETH on successful claim', async () => {
-    //   const ethBalBefore = await tradeAccounting.getEthBalance()
-    //   await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
-    //   const ethBalAfter = await tradeAccounting.getEthBalance()
-    //   assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
-    // })
+    it('should exchange sUSD for ETH on successful claim', async () => {
+      const ethBalBefore = await tradeAccounting.getEthBalance()
+      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
+      const ethBalAfter = await tradeAccounting.getEthBalance()
+      assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
+    })
 
     it('should fix c-ratio before claiming if collateralization is below (w/ no escrowed bal)', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()

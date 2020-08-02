@@ -127,19 +127,19 @@ contract(
         const baseSetNaturalUnit = await tradeAccounting.extGetBaseSetNaturalUnit()
         const baseSetComponentUnits = await tradeAccounting.extGetBaseSetComponentUnits()
         const baseSetIssuable = componentQuantity
-        .mul(baseSetNaturalUnit)
-        .div(baseSetComponentUnits)
-        
+          .mul(baseSetNaturalUnit)
+          .div(baseSetComponentUnits)
+
         const rebalancingSetNaturalUnit = await tradeAccounting.extGetSetNaturalUnit()
         const unitShares = await tradeAccounting.extGetSetUnitShares()
         // use same 1% issuance qty reduction as in contract
         const rebalancingSetQuantity = baseSetIssuable
-        .mul(rebalancingSetNaturalUnit)
-        .div(unitShares)
-        .mul(new BN(99))
-        .div(new BN(100))
-        .div(rebalancingSetNaturalUnit)
-        .mul(rebalancingSetNaturalUnit)
+          .mul(rebalancingSetNaturalUnit)
+          .div(unitShares)
+          .mul(new BN(99))
+          .div(new BN(100))
+          .div(rebalancingSetNaturalUnit)
+          .mul(rebalancingSetNaturalUnit)
 
         assertBNEqual(
           rebalancingSetQuantity,
@@ -185,7 +185,7 @@ contract(
 )
 
 contract(
-  'TradeAccounting: Set Protocol: 6 Decimal Active Asset',
+  'TradeAccounting: Set Protocol: 6 Decimal Active Asset (USDC)',
   async (accounts) => {
     const [deployerAccount] = accounts
     before(async () => {
@@ -221,14 +221,14 @@ contract(
       await rebalancingModule.toggleActiveAssetIndex()
       await setToken.toggleActiveAssetIndex()
       await collateralSetToken.toggleActiveAssetIndex()
-  
+
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
-  
+
       await xsnx.hedge(
         amountSusd,
         ['0', '0'],
@@ -351,7 +351,6 @@ contract(
         )
         assertBNEqual(setRedeemable, setRedeemableCheck)
       })
-
     })
   },
 )

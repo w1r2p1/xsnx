@@ -9,14 +9,11 @@ contract MockCurveFi {
     address susdAddress; // 3
     address usdcAddress; // 1
 
-    event CurveAmounts(uint srcAmt, uint destAmt);
-
     function exchange_underlying(int128 i, int128 j, uint amount, uint minReturn) public {
         // usdc 6 dec, susd 18 dec
         if (i == 1) {
             IERC20(usdcAddress).transferFrom(msg.sender, address(this), amount);
             IERC20(susdAddress).transfer(msg.sender, amount.mul(1e18).div(1e6)); 
-            emit CurveAmounts(amount, amount.mul(1e18).div(1e6));
         }
         if (i == 3) {
             IERC20(susdAddress).transferFrom(msg.sender, address(this), amount);
