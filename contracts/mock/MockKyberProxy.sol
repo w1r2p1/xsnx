@@ -28,12 +28,12 @@ contract MockKyberProxy {
         if(src == ERC20(ethAddress) && dest == ERC20(snxAddress)) return (100e18, 100e18);
         if(src == ERC20(ethAddress) && dest == ERC20(susdAddress)) return (200e18, 200e18);
         if(src == ERC20(ethAddress) && dest == ERC20(wethAddress)) return (1e18, 1e18);
-        if(src == ERC20(ethAddress) && dest == ERC20(usdcAddress)) return (200e18, 200e18);
+        if(src == ERC20(ethAddress) && dest == ERC20(usdcAddress)) return (200e6, 200e6);
 
         if(src == ERC20(snxAddress) && dest == ERC20(ethAddress)) return (1e16, 1e16);
         if(src == ERC20(susdAddress) && dest == ERC20(ethAddress)) return (5e15, 5e15);
         if(src == ERC20(susdAddress) && dest == ERC20(wethAddress)) return (5e15, 5e15);
-        if(src == ERC20(susdAddress) && dest == ERC20(usdcAddress)) return (1e18, 1e18);
+        if(src == ERC20(susdAddress) && dest == ERC20(usdcAddress)) return (1e6, 1e6);
 
         if(src == ERC20(wethAddress) && dest == ERC20(susdAddress)) return (200e18, 200e18);
     }
@@ -49,7 +49,7 @@ contract MockKyberProxy {
         }
         if(token == ERC20(usdcAddress)){
             IERC20(usdcAddress).transferFrom(msg.sender, address(this), tokenQty);
-            msg.sender.transfer(tokenQty.div(ethUsd));
+            msg.sender.transfer(tokenQty.div(ethUsd).mul(1e18).div(1e6)); // usdc = 6 dec, eth = 18 dec
         }
         if(token == ERC20(snxAddress)){
             IERC20(snxAddress).transferFrom(msg.sender, address(this), tokenQty);
@@ -60,6 +60,7 @@ contract MockKyberProxy {
             msg.sender.transfer(tokenQty);
         }
     }
+
     function swapTokenToToken(ERC20 src, uint srcAmount, ERC20 dest, uint minConversionRate) public returns(uint){
         if(src == ERC20(wethAddress) && dest == ERC20(susdAddress)){
             IERC20(wethAddress).transferFrom(msg.sender, address(this), srcAmount);
@@ -67,7 +68,7 @@ contract MockKyberProxy {
         }
         if(src == ERC20(wethAddress) && dest == ERC20(usdcAddress)){
             IERC20(wethAddress).transferFrom(msg.sender, address(this), srcAmount);
-            IERC20(usdcAddress).transfer(msg.sender, srcAmount.mul(ethUsd));
+            IERC20(usdcAddress).transfer(msg.sender, srcAmount.mul(ethUsd).mul(1e6).div(1e18)); // usdc = 6 dec, eth = 18 dec
         }
         if(src == ERC20(susdAddress) && dest == ERC20(wethAddress)){
             IERC20(susdAddress).transferFrom(msg.sender, address(this), srcAmount);
@@ -75,7 +76,7 @@ contract MockKyberProxy {
         }
         if(src == ERC20(usdcAddress) && dest == ERC20(wethAddress)){
             IERC20(usdcAddress).transferFrom(msg.sender, address(this), srcAmount);
-            IERC20(wethAddress).transfer(msg.sender, srcAmount.div(ethUsd));
+            IERC20(wethAddress).transfer(msg.sender, srcAmount.div(ethUsd).mul(1e18).div(1e6)); // usdc = 6 dec, eth = 18 dec
         }
 
     }

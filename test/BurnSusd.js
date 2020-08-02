@@ -1,4 +1,4 @@
-const { assertBNEqual, BN_ZERO, bn, DEC_18 } = require('./utils')
+const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime, FIVE_HOURS } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
@@ -59,6 +59,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
     })
 
     it('should calculate total sUSD to burn for a given redemption', async () => {
+      await increaseTime(FIVE_HOURS)
       await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
@@ -70,7 +71,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await susd.transfer(curve.address, web3.utils.toWei('100'))
-      await usdc.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()

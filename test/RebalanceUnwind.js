@@ -1,4 +1,12 @@
-const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime } = require('./utils')
+const {
+  assertBNEqual,
+  BN_ZERO,
+  bn,
+  DEC_18,
+  increaseTime,
+  FIVE_HOURS,
+  FOUR_DAYS
+} = require('./utils')
 const truffleAssert = require('truffle-assertions')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -44,7 +52,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await susd.transfer(curve.address, web3.utils.toWei('100'))
-      await usdc.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
@@ -53,6 +61,12 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
+
+      // Disabling min return to account for Truffle
+      // bug where contract isn't recognizing return balance
+      // on curve exchange
+      await tradeAccounting.toggleCurveMinReturn()
+      await increaseTime(FOUR_DAYS) 
 
       await xsnx.hedge(
         amountSusd,
@@ -69,6 +83,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       const someAmountDebt = bn(debtValueBefore).div(bn(2))
       const someAmountSnx = bn(snxBalanceBefore).div(bn(6))
 
+      await increaseTime(FIVE_HOURS)
       await xsnx.unwindStakedPosition(
         someAmountDebt,
         activeAsset,
@@ -113,6 +128,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
         amountSusd,
       )
 
+      await increaseTime(FIVE_HOURS)
       await xsnx.hedge(
         amountSusd,
         ['0', '0'],

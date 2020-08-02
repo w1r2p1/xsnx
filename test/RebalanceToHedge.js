@@ -1,4 +1,4 @@
-const { assertBNEqual, BN_ZERO, bn, DEC_18 } = require('./utils')
+const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime, FOUR_DAYS } = require('./utils')
 const truffleAssert = require('truffle-assertions')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -44,7 +44,7 @@ contract('xSNXCore: Rebalances', async (accounts) => {
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await susd.transfer(curve.address, web3.utils.toWei('100'))
-      await usdc.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
@@ -103,6 +103,12 @@ contract('xSNXCore: Rebalances', async (accounts) => {
 
       const isRequired = await tradeAccounting.isRebalanceTowardsHedgeRequired()
       assert.equal(isRequired, true)
+
+      // Disabling min return to account for Truffle
+      // bug where contract isn't recognizing return balance
+      // on curve exchange
+      await tradeAccounting.toggleCurveMinReturn()
+      await increaseTime(FOUR_DAYS) 
 
       const rebalanceVals = await tradeAccounting.getRebalanceTowardsHedgeUtils()
       await xsnx.rebalanceTowardsHedge(

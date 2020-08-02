@@ -72,17 +72,20 @@ import "./interface/ISetAssetBaseCollateral.sol";
 contract TradeAccounting is Whitelist {
     using SafeMath for uint256;
 
+    uint256 private constant DEC_6 = 1e6;
     uint256 private constant DEC_18 = 1e18;
     uint256 private constant PERCENT = 100;
     uint256 private constant ETH_TARGET = 4; // targets 1/4th of hedge portfolio
     uint256 private constant SLIPPAGE_RATE = 99;
+    uint256 private constant MIN_CURVE_RETURN = 96;
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant RATE_STALE_TIME = 3600; // 1 hour
     uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
+    uint256 private constant CURVE_UPDATE_WAITING_PERIOD = 1 days;
 
-    int128 USDC_INDEX = 1;
-    int128 SUSD_INDEX = 3;
+    int128 usdcIndex;
+    int128 susdIndex;
 
     ICurveFi private curveFi;
     ISynthetix private synthetix;
@@ -99,6 +102,11 @@ contract TradeAccounting is Whitelist {
     address private setAddress;
     address private susdAddress;
     address private usdcAddress;
+
+    bool private isCurveSet;
+    bool private isCurveMinReturnPaused;
+    uint256 private curveAddressUpdatedTimestamp;
+    uint256 private curveMinReturnToggledTimestamp;
 
     bytes32 constant snx = "SNX";
     bytes32 constant susd = "sUSD";
@@ -160,12 +168,10 @@ contract TradeAccounting is Whitelist {
         uint256 minCurveReturn
     ) public onlyCaller {
         if (fromToken == susdAddress) {
-            _exchangeUnderlying(SUSD_INDEX, USDC_INDEX, amount, minCurveReturn);
-
-            uint256 usdcBal = getUsdcBalance();
-            require(usdcBal >= minCurveReturn, "Insufficient trade");
+            _exchangeUnderlying(susdIndex, usdcIndex, amount, minCurveReturn);
 
             if (toToken != usdcAddress) {
+                uint256 usdcBal = getUsdcBalance();
                 _swapTokenToToken(usdcAddress, usdcBal, toToken, minKyberRate);
             }
         } else if (toToken == susdAddress) {
@@ -175,14 +181,11 @@ contract TradeAccounting is Whitelist {
 
             uint256 usdcBal = getUsdcBalance();
             _exchangeUnderlying(
-                USDC_INDEX,
-                SUSD_INDEX,
+                usdcIndex,
+                susdIndex,
                 usdcBal,
                 minCurveReturn
             );
-
-            uint256 susdBal = getSusdBalance();
-            require(susdBal >= minCurveReturn, "Insufficient trade");
         } else {
             _swapTokenToToken(fromToken, amount, toToken, minKyberRate);
         }
@@ -214,10 +217,9 @@ contract TradeAccounting is Whitelist {
         uint256 minCurveReturn
     ) public onlyCaller {
         if (fromToken == susdAddress) {
-            _exchangeUnderlying(SUSD_INDEX, USDC_INDEX, amount, minCurveReturn);
-            uint256 usdcBal = getUsdcBalance();
-            require(usdcBal >= minCurveReturn, "Insufficient trade");
+            _exchangeUnderlying(susdIndex, usdcIndex, amount, minCurveReturn);
 
+            uint256 usdcBal = getUsdcBalance();
             _swapTokenToEther(usdcAddress, usdcBal, minKyberRate);
         } else {
             _swapTokenToEther(fromToken, amount, minKyberRate);
@@ -245,12 +247,41 @@ contract TradeAccounting is Whitelist {
         uint256 _amount,
         uint256 _minReturn
     ) private {
+        require(!isCurveInWaitingPeriod(block.timestamp), "In waiting period");
         curveFi.exchange_underlying(
             _inputIndex,
             _outputIndex,
             _amount,
             _minReturn
         );
+
+        // unless Curve min return is disabled,
+        // confirm that MIN_CURVE_RETURN is satisfied
+        if (!isCurveMinReturnDisabled()) {
+            if (_inputIndex == susdIndex) {
+                // susd => usdc trade
+                require(
+                    getUsdcBalance() >=
+                        _amount
+                            .mul(DEC_6)
+                            .div(DEC_18)
+                            .mul(MIN_CURVE_RETURN)
+                            .div(PERCENT),
+                    "Insufficient trade"
+                );
+            } else {
+                // usdc => susd trade
+                require(
+                    getSusdBalance() >=
+                        _amount
+                            .mul(DEC_18)
+                            .div(DEC_6)
+                            .mul(MIN_CURVE_RETURN)
+                            .div(PERCENT),
+                    "Insufficient trade"
+                );
+            }
+        }
     }
 
     function getUsdcBalance() internal view returns (uint256) {
@@ -292,7 +323,6 @@ contract TradeAccounting is Whitelist {
         uint256 ethBalBefore = getEthBalance().sub(ethContribution);
 
         allocateToEth = shouldAllocateEthToEthReserve(
-            ethContribution,
             setHoldingsInWei,
             ethBalBefore,
             totalSupply
@@ -301,7 +331,6 @@ contract TradeAccounting is Whitelist {
     }
 
     function shouldAllocateEthToEthReserve(
-        uint256 ethContribution,
         uint256 setHoldingsInWei,
         uint256 ethBalBefore,
         uint256 totalSupply
@@ -516,11 +545,11 @@ contract TradeAccounting is Whitelist {
     {
         address currentSetAsset = getAssetCurrentlyActiveInSet();
 
-        (uint256 expectedSetAssetRate, ) = kyberNetworkProxy.getExpectedRate(
-            ERC20(susdAddress),
-            ERC20(currentSetAsset),
-            totalSusdToBurn
-        );
+        bytes32 activeAssetSynthSymbol = getActiveAssetSynthSymbol();
+        uint256 synthUsd = getSynthPrice(activeAssetSynthSymbol);
+
+        // expectedSetAssetRate = amount of current set asset needed to redeem for 1 sUSD
+        uint expectedSetAssetRate = DEC_18.mul(DEC_18).div(synthUsd);
 
         uint256 setAssetCollateralToSell = expectedSetAssetRate
             .mul(totalSusdToBurn)
@@ -782,6 +811,7 @@ contract TradeAccounting is Whitelist {
             issuanceRatio
         );
 
+
             uint256 susdToBurnToEclipseEscrowed
          = calculateSusdToBurnToEclipseEscrowed(issuanceRatio);
 
@@ -994,8 +1024,19 @@ contract TradeAccounting is Whitelist {
         exchangeRates = IExchangeRates(exchangeRatesAddress);
     }
 
-    function setCurveAddress(address _curvePoolAddress) public onlyOwner {
-        curveFi = ICurveFi(_curvePoolAddress);
+    function setCurve(address curvePoolAddress, int128 _usdcIndex, int128 _susdIndex) public onlyOwner {
+        if (isCurveSet) {
+            // if updating Curve address (i.e., not initial setting of address on deployment),
+            // set timestamp which freezes all functions that touch Curve for CURVE_UPDATE_WAITING_PERIOD
+            curveAddressUpdatedTimestamp = block.timestamp;
+        } else {
+            // if initial set on deployment, toggle bool but don't set curveAddressUpdatedTimestamp
+            // to allow for Curve functionality to be available immediately
+            isCurveSet = true;
+        }
+        curveFi = ICurveFi(curvePoolAddress);
+        usdcIndex = _usdcIndex;
+        susdIndex = _susdIndex;
     }
 
     /* ========================================================================================= */
@@ -1010,6 +1051,37 @@ contract TradeAccounting is Whitelist {
     // admin on deployment approve [susd, usdc]
     function approveCurve(address tokenAddress) public onlyOwner {
         IERC20(tokenAddress).approve(address(curveFi), MAX_UINT);
+    }
+
+    // if true, all functionality that touches Curve is disabled for CURVE_UPDATE_WAITING_PERIOD
+    function isCurveInWaitingPeriod(uint256 currentTimestamp)
+        public
+        view
+        returns (bool)
+    {
+        if (curveAddressUpdatedTimestamp == 0) return false;
+        if (
+            currentTimestamp.sub(CURVE_UPDATE_WAITING_PERIOD) <
+            curveAddressUpdatedTimestamp
+        ) return true;
+    }
+
+    function toggleCurveMinReturn() public onlyOwner {
+        if (!isCurveMinReturnPaused) {
+            curveMinReturnToggledTimestamp = block.timestamp;
+        }
+        isCurveMinReturnPaused = !isCurveMinReturnPaused;
+    }
+
+    // true if minReturn has been disabled more than 3 days ago
+    function isCurveMinReturnDisabled() internal view returns (bool) {
+        if (
+            isCurveMinReturnPaused &&
+            curveMinReturnToggledTimestamp.add(
+                CURVE_UPDATE_WAITING_PERIOD.mul(3)
+            ) <
+            block.timestamp
+        ) return true;
     }
 
     function() external payable {}

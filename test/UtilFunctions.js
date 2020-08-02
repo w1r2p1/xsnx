@@ -1,6 +1,14 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
-const { assertBNEqual, BN_ZERO, ETH_ADDRESS, bn, DEC_18 } = require('./utils')
+const {
+  assertBNEqual,
+  BN_ZERO,
+  ETH_ADDRESS,
+  bn,
+  DEC_18,
+  increaseTime,
+  FOUR_DAYS
+} = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockAddressResolver = artifacts.require('MockAddressResolver')
@@ -150,7 +158,7 @@ contract(
         await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
         await susd.transfer(feePool.address, web3.utils.toWei('20'))
         await susd.transfer(curve.address, web3.utils.toWei('100'))
-        await usdc.transfer(curve.address, web3.utils.toWei('100'))
+        await usdc.transfer(curve.address, '100000000')
 
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
         const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
@@ -168,7 +176,7 @@ contract(
           ethAllocation,
         )
 
-        await xsnx.claim(0, [0, 0], [0,0], true)
+        await xsnx.claim(0, [0, 0], [0, 0], true)
 
         const contractEthBalBefore = await web3.eth.getBalance(xsnx.address)
         const susdBalBefore = await susd.balanceOf(deployer)
@@ -204,6 +212,58 @@ contract(
           bn(snxBalanceAfter),
           bn(snxBalanceBefore).add(expectedSnxBought),
         )
+      })
+    })
+
+    describe('Curve address setter waiting period', async () => {
+      it('should disable fund management functionality after being updated', async () => {
+        await tradeAccounting.setCurve(account1, 1, 3) // random address - just for demo
+        const amountSusd = bn(1000)
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+        await truffleAssert.reverts(
+          xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation),
+          'Is breathing period',
+        )
+      })
+
+      it('should enable fund mgmt functions after the waiting period', async () => {
+        await tradeAccounting.setCurve(curve.address, 1, 3)
+        const amountSusd = bn(1000)
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+        await truffleAssert.reverts(
+          xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation),
+          'Is breathing period',
+        )
+
+        const TWENTY_FIVE_HOURS = 60 * 60 * 25
+        await increaseTime(TWENTY_FIVE_HOURS)
+        await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation)
+        assert(true)
+      })
+    })
+
+    describe('Curve min return waiting period', async () => {
+      it('should not activate for three days', async () => {
+        await tradeAccounting.toggleCurveMinReturn()
+        const isDisabled = await tradeAccounting.extIsCurveMinReturnDisabled()
+        assertBNEqual(isDisabled, false)
+
+        await increaseTime(FOUR_DAYS)
+
+        const isDisabledAfter = await tradeAccounting.extIsCurveMinReturnDisabled()
+        assertBNEqual(isDisabledAfter, true)
+      })
+
+      it('should be able to be de-activated', async () => {
+        await tradeAccounting.toggleCurveMinReturn()
+        const isDisabled = await tradeAccounting.extIsCurveMinReturnDisabled()
+        assertBNEqual(isDisabled, false)
       })
     })
   },

@@ -1,28 +1,22 @@
 const synthetix = require('synthetix')
 
-const deployment = 'ETH20SMACO'
+const deployment = 'ETHRSI6040'
 // const deployment = "LINKETHRSI"
 
-const isEth20Smaco = deployment === 'ETH20SMACO'
-
-const susd = synthetix.getTarget({
-  network: 'kovan',
-  contract: 'ProxyERC20sUSD',
-}).address
-console.log('susd', susd)
+const isEthRsi6040 = deployment === 'ETHRSI6040'
 
 const migrationInputs = {
   SET_ADDRESS: {
     kovan: '0x76f579bb28a470913AbE98fc9d76145c26839af7', // LINKETHRSI
-    mainnet: isEth20Smaco ? '' : '',
+    mainnet: isEthRsi6040 ? '' : '',
   },
   SET_ASSET_1: {
     kovan: '0x8a18c7034acefd1748199a58683ee5f22e2d4e45', // WETH
-    mainnet: isEth20Smaco ? '' : '',
+    mainnet: isEthRsi6040 ? '' : '',
   },
   SET_ASSET_2: {
     kovan: '0x61eB5a373c4Ec78523602583c049d8563d2C7BCD', // LINK
-    mainnet: isEth20Smaco ? '' : '',
+    mainnet: isEthRsi6040 ? '' : '',
   },
   KYBER_PROXY: {
     kovan: '0x692f391bCc85cefCe8C237C01e1f636BbD70EA4D',
@@ -63,7 +57,7 @@ const migrationInputs = {
   },
   SYNTH_SYMBOLS: {
     kovan: ['sETH', 'sLINK'],
-    mainnet: isEth20Smaco ? [] : [],
+    mainnet: isEthRsi6040 ? [] : [],
   },
 }
 

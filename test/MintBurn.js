@@ -1,5 +1,5 @@
 const { BN } = require('@openzeppelin/test-helpers')
-const { assertBNEqual, BN_ZERO, toNumber, DEC_18, bn } = require('./utils')
+const { assertBNEqual, BN_ZERO, toNumber, DEC_18, bn, increaseTime, FIVE_HOURS } = require('./utils')
 const truffleAssert = require('truffle-assertions')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -48,7 +48,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await susd.transfer(curve.address, web3.utils.toWei('100'))
-      await usdc.transfer(curve.address, web3.utils.toWei('100'))
+      await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
@@ -311,6 +311,7 @@ contract('xSNXCore: Minting', async (accounts) => {
     })
 
     it('should allocate to ETH on mint with ETH if ETH reserve is under-capitalized', async () => {
+      await increaseTime(FIVE_HOURS)
       await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,
@@ -371,6 +372,7 @@ contract('xSNXCore: Minting', async (accounts) => {
   describe('NAV calculations on Redemption', async () => {
     // equal to NAV on issuance, less value of escrowed SNX
     it('should correctly calculate NAV on redemption w/ no escrowed bal', async () => {
+      await increaseTime(FIVE_HOURS)
       await rewardEscrow.setBalance('0')
       await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
@@ -419,6 +421,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       assertBNEqual(contractNavOnRedeem, navOnRedeem)
     })
     it('should correctly calculate NAV on redemption w/ escrowed bal', async () => {
+      await increaseTime(FIVE_HOURS)
       await rewardEscrow.setBalance(web3.utils.toWei('1'))
       await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
@@ -571,6 +574,7 @@ contract('xSNXCore: Minting', async (accounts) => {
 
   describe('Burning tokens on redemption', async () => {
     it('should send the correct amount of ETH based on tokens burned', async () => {
+      await increaseTime(FIVE_HOURS)
       await setToken.transfer(rebalancingModule.address, toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,

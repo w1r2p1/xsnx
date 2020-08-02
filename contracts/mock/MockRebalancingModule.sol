@@ -7,9 +7,24 @@ contract MockRebalancingModule {
     using SafeMath for uint256;
     address setToken;
     address wethAddress;
+    address usdcAddress;
+
+    uint activeAssetIndex = 0; // 0 for WETH, 1 for USDC
 
     function setWethAddress(address _wethAddress) public {
         wethAddress = _wethAddress;
+    }
+
+    function setUsdcAddress(address _usdcAddress) public {
+        usdcAddress = _usdcAddress;
+    }
+
+    function toggleActiveAssetIndex() public {
+        if(activeAssetIndex == 0){
+            activeAssetIndex = 1;
+        } else {
+            activeAssetIndex = 0;
+        }
     }
 
     constructor(address _setToken) public {
@@ -22,11 +37,18 @@ contract MockRebalancingModule {
         bool _keepChangeInVault
     ) public {
         IERC20(_rebalancingSetAddress).transferFrom(msg.sender, address(this), _rebalancingSetQuantity);
+        
+        if(activeAssetIndex == 0){
         // this redemption calc is a rough approx of the ratio of weth/Set unit implicit 
         // in hard-coded data in MockSetToken and MockCollateralSet
         // essentially 1 WETH gets you a bit less than 1 Set
-        uint wethToSend = _rebalancingSetQuantity.mul(853e15).div(1e18); // underlying asset
-        IERC20(wethAddress).transfer(msg.sender, wethToSend);
+            uint wethToSend = _rebalancingSetQuantity.mul(853e15).div(1e18); // underlying asset
+            IERC20(wethAddress).transfer(msg.sender, wethToSend);
+        } else {
+            // account for eth/usd exch rate and usdc 6 decimal pts
+            uint usdcToSend = _rebalancingSetQuantity.mul(853e15).div(1e18).mul(200).mul(1e6).div(1e18);
+            IERC20(usdcAddress).transfer(msg.sender, usdcToSend);
+        }
     }
 
     function issueRebalancingSet(
@@ -34,8 +56,14 @@ contract MockRebalancingModule {
         uint256 _rebalancingSetQuantity,
         bool _keepChangeInVault
     ) public {
-        uint wethToReceive = _rebalancingSetQuantity.mul(853e15).div(1e18);
-        IERC20(wethAddress).transferFrom(msg.sender, address(this), wethToReceive);
+        if(activeAssetIndex == 0){
+            uint wethToReceive = _rebalancingSetQuantity.mul(853e15).div(1e18);
+            IERC20(wethAddress).transferFrom(msg.sender, address(this), wethToReceive);
+        } else {
+            // account for eth/usd exch rate and usdc 6 decimal pts
+            uint usdcToReceive = _rebalancingSetQuantity.mul(853e15).div(1e18).mul(200).mul(1e6).div(1e18); 
+            IERC20(usdcAddress).transferFrom(msg.sender, address(this), usdcToReceive);
+        }
         IERC20(setToken).transfer(msg.sender, _rebalancingSetQuantity);
     }
 }

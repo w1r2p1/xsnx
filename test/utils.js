@@ -8,6 +8,8 @@ const collatDivisor = new BN(8)
 const DEC_18 = new BN(web3.utils.toWei('1'))
 const toNumber = (val) => Number(val.toString())
 const bn = val => new BN(val)
+const FIVE_HOURS = 60 * 60 * 5
+const FOUR_DAYS = 60 * 60 * 24 * 4
 
 const increaseTime = async seconds => {
   const id = Date.now();
@@ -38,5 +40,7 @@ module.exports = {
   DEC_18,
   toNumber,
   bn,
-  increaseTime
+  increaseTime,
+  FIVE_HOURS,
+  FOUR_DAYS
 }
