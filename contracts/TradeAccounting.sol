@@ -82,7 +82,7 @@ contract TradeAccounting is Whitelist {
     uint256 private constant RATE_STALE_TIME = 3600; // 1 hour
     uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
-    uint256 private constant CURVE_UPDATE_WAITING_PERIOD = 1 days;
+    uint256 private constant CURVE_UPDATE_WAITING_PERIOD = 2 days;
 
     int128 usdcIndex;
     int128 susdIndex;
@@ -104,9 +104,7 @@ contract TradeAccounting is Whitelist {
     address private usdcAddress;
 
     bool private isCurveSet;
-    bool private isCurveMinReturnPaused;
     uint256 private curveAddressUpdatedTimestamp;
-    uint256 private curveMinReturnToggledTimestamp;
 
     bytes32 constant snx = "SNX";
     bytes32 constant susd = "sUSD";
@@ -254,34 +252,6 @@ contract TradeAccounting is Whitelist {
             _amount,
             _minReturn
         );
-
-        // unless Curve min return is disabled,
-        // confirm that MIN_CURVE_RETURN is satisfied
-        if (!isCurveMinReturnDisabled()) {
-            if (_inputIndex == susdIndex) {
-                // susd => usdc trade
-                require(
-                    getUsdcBalance() >=
-                        _amount
-                            .mul(DEC_6)
-                            .div(DEC_18)
-                            .mul(MIN_CURVE_RETURN)
-                            .div(PERCENT),
-                    "Insufficient trade"
-                );
-            } else {
-                // usdc => susd trade
-                require(
-                    getSusdBalance() >=
-                        _amount
-                            .mul(DEC_18)
-                            .div(DEC_6)
-                            .mul(MIN_CURVE_RETURN)
-                            .div(PERCENT),
-                    "Insufficient trade"
-                );
-            }
-        }
     }
 
     function getUsdcBalance() internal view returns (uint256) {
@@ -1063,24 +1033,6 @@ contract TradeAccounting is Whitelist {
         if (
             currentTimestamp.sub(CURVE_UPDATE_WAITING_PERIOD) <
             curveAddressUpdatedTimestamp
-        ) return true;
-    }
-
-    function toggleCurveMinReturn() public onlyOwner {
-        if (!isCurveMinReturnPaused) {
-            curveMinReturnToggledTimestamp = block.timestamp;
-        }
-        isCurveMinReturnPaused = !isCurveMinReturnPaused;
-    }
-
-    // true if minReturn has been disabled more than 3 days ago
-    function isCurveMinReturnDisabled() internal view returns (bool) {
-        if (
-            isCurveMinReturnPaused &&
-            curveMinReturnToggledTimestamp.add(
-                CURVE_UPDATE_WAITING_PERIOD.mul(3)
-            ) <
-            block.timestamp
         ) return true;
     }
 

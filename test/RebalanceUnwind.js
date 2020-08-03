@@ -62,12 +62,6 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
         amountSusd,
       )
 
-      // Disabling min return to account for Truffle
-      // bug where contract isn't recognizing return balance
-      // on curve exchange
-      await tradeAccounting.toggleCurveMinReturn()
-      await increaseTime(FOUR_DAYS) 
-
       await xsnx.hedge(
         amountSusd,
         ['0', '0'],
@@ -91,6 +85,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
         ['0', '0'],
         someAmountSnx,
       )
+
       const hedgeAssetsValueUsd = await tradeAccounting.extCalculateHedgeAssetsValueInUsd()
 
       const debtValueAfter = await tradeAccounting.extGetContractDebtValue()

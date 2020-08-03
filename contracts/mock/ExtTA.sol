@@ -91,9 +91,6 @@ contract ExtTA is TradeAccounting {
     function extETH_TARGET() public view returns(uint){
         return 4;
     }
-    function extIsCurveMinReturnDisabled() public view returns(bool){
-        return isCurveMinReturnDisabled();
-    }
     function extGetActiveAssetSynthSymbol() public view returns(bytes32){
         return getActiveAssetSynthSymbol();
     }
