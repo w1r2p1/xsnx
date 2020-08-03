@@ -8,7 +8,7 @@ const {
   DEC_18,
   increaseTime,
   FOUR_DAYS,
-  FIVE_HOURS
+  FIVE_HOURS,
 } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -27,7 +27,7 @@ const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 contract(
   'xSNXCore, TradeAccounting: Address Setters and Utils',
   async (accounts) => {
-    const [deployer, account1] = accounts
+    const [deployer, account1, account2] = accounts
     before(async () => {
       xsnx = await xSNXCore.deployed()
       addressResolver = await MockAddressResolver.deployed()
@@ -247,6 +247,61 @@ contract(
         await increaseTime(THREE_DAYS)
         await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation)
         assert(true)
+      })
+    })
+
+    describe('Setting manager privilege', async () => {
+      it('should be able to set a manager privilege', async () => {
+        await xsnx.setManagerAddress(account1)
+        assert(true)
+      })
+      it('should give the manager management privileges', async () => {
+        await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+        const debtBalance = await synthetix.debtBalanceOf(
+          xsnx.address,
+          web3.utils.fromAscii('sUSD'),
+        )
+        const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+
+        await increaseTime(FIVE_HOURS)
+        await xsnx.hedge(
+          amountSusd,
+          [0, 0],
+          [0, 0],
+          activeAsset,
+          ethAllocation,
+          { from: account1 },
+        )
+
+        assert(true)
+      })
+
+      it('should still exclude non-admins from mgmt privileges', async () => {
+        await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+        const debtBalance = await synthetix.debtBalanceOf(
+          xsnx.address,
+          web3.utils.fromAscii('sUSD'),
+        )
+        const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+
+        await increaseTime(FIVE_HOURS)
+        await truffleAssert.reverts(
+          xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation, {
+            from: account2,
+          }),
+          'Non-admin caller',
+        )
       })
     })
   },

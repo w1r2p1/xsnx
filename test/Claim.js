@@ -45,7 +45,7 @@ contract('xSNXCore: Claim', async (accounts) => {
     it('should revert if called from non owner', async () => {
       await truffleAssert.reverts(
         xsnx.claim(0, [0, 0], [0, 0], true, { from: account1 }),
-        'Ownable: caller is not the owner',
+        'Non-admin caller',
       )
     })
 

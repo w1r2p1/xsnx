@@ -18,8 +18,9 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     address private susdAddress;
     address private setAddress;
     address private snxAddress;
-
     address private setTransferProxy;
+
+    address private manager;
 
     bytes32 constant susd = "sUSD";
 
@@ -204,7 +205,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minCurveReturns,
         address activeAsset,
         uint256 ethAllocation
-    ) external onlyOwner whenNotPaused isNotBreathingPeriod {
+    ) external onlyOwnerOrManager whenNotPaused isNotBreathingPeriod {
         _stake(mintAmount);
 
         _allocateToEth(ethAllocation, minKyberRates[0], minCurveReturns[0]);
@@ -249,7 +250,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         bool feesClaimable
-    ) external onlyOwner {
+    ) external onlyOwnerOrManager {
         IFeePool feePool = IFeePool(addressResolver.getAddress(feePoolName));
 
         if (!feesClaimable) {
@@ -329,7 +330,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256 minRate,
         uint256 setToSell,
         address currentSetAsset
-    ) external onlyOwner {
+    ) external onlyOwnerOrManager {
         require(
             tradeAccounting.isRebalanceTowardsSnxRequired(),
             "Rebalance not necessary"
@@ -364,7 +365,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwner {
+    ) external onlyOwnerOrManager {
         require(
             tradeAccounting.isRebalanceTowardsHedgeRequired(),
             "Rebalance unnecessary"
@@ -391,7 +392,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256 redemptionQuantity,
         address activeAsset,
         uint256 minKyberRate
-    ) external onlyOwner whenNotPaused {
+    ) external onlyOwnerOrManager whenNotPaused {
         _redeemRebalancingSet(redemptionQuantity);
 
         uint256 activeAssetBalance = getActiveSetAssetBalance();
@@ -428,7 +429,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwner isNotBreathingPeriod {
+    ) external onlyOwnerOrManager isNotBreathingPeriod {
         _unwindStakedPosition(
             totalSusdToBurn,
             activeAsset,
@@ -544,6 +545,15 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
                 withdrawableEthFees = withdrawableEthFees.add(fee);
             }
         }
+    }
+
+    function setManagerAddress(address _manager) public onlyOwner {
+        manager = _manager;
+    }
+
+    modifier onlyOwnerOrManager {
+        require(isOwner() || msg.sender == manager, "Non-admin caller");
+        _;
     }
 
     /*
