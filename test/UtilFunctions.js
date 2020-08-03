@@ -7,7 +7,8 @@ const {
   bn,
   DEC_18,
   increaseTime,
-  FOUR_DAYS
+  FOUR_DAYS,
+  FIVE_HOURS
 } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -236,34 +237,16 @@ contract(
         const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
           amountSusd,
         )
+        await increaseTime(FIVE_HOURS)
         await truffleAssert.reverts(
           xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation),
-          'Is breathing period',
+          'In waiting period',
         )
 
-        const TWENTY_FIVE_HOURS = 60 * 60 * 25
-        await increaseTime(TWENTY_FIVE_HOURS)
+        const THREE_DAYS = 60 * 60 * 24 * 3
+        await increaseTime(THREE_DAYS)
         await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation)
         assert(true)
-      })
-    })
-
-    describe('Curve min return waiting period', async () => {
-      it('should not activate for three days', async () => {
-        await tradeAccounting.toggleCurveMinReturn()
-        const isDisabled = await tradeAccounting.extIsCurveMinReturnDisabled()
-        assertBNEqual(isDisabled, false)
-
-        await increaseTime(FOUR_DAYS)
-
-        const isDisabledAfter = await tradeAccounting.extIsCurveMinReturnDisabled()
-        assertBNEqual(isDisabledAfter, true)
-      })
-
-      it('should be able to be de-activated', async () => {
-        await tradeAccounting.toggleCurveMinReturn()
-        const isDisabled = await tradeAccounting.extIsCurveMinReturnDisabled()
-        assertBNEqual(isDisabled, false)
       })
     })
   },

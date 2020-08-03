@@ -104,13 +104,7 @@ contract('xSNXCore: Claim', async (accounts) => {
       
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
       assertBNEqual(susdToBurnCollat.gt(BN_ZERO), true) // i.e., fees should be unclaimable until susd burn
-      
-      // Disabling min return to account for Truffle
-      // bug where contract isn't recognizing return balance
-      // on curve exchange
-      await tradeAccounting.toggleCurveMinReturn()
-      await increaseTime(FOUR_DAYS) 
-
+ 
       await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
         from: deployerAccount,
       })

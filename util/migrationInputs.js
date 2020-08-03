@@ -15,7 +15,7 @@ const migrationInputs = {
     mainnet: isEthRsi6040 ? '' : '',
   },
   SET_ASSET_2: {
-    kovan: '0x61eB5a373c4Ec78523602583c049d8563d2C7BCD', // LINK
+    kovan: '0xA91FDf706d8675eE43E5Ac4cBDb5d615bd5921a8', // USDC
     mainnet: isEthRsi6040 ? '' : '',
   },
   KYBER_PROXY: {

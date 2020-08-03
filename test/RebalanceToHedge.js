@@ -104,12 +104,6 @@ contract('xSNXCore: Rebalances', async (accounts) => {
       const isRequired = await tradeAccounting.isRebalanceTowardsHedgeRequired()
       assert.equal(isRequired, true)
 
-      // Disabling min return to account for Truffle
-      // bug where contract isn't recognizing return balance
-      // on curve exchange
-      await tradeAccounting.toggleCurveMinReturn()
-      await increaseTime(FOUR_DAYS) 
-
       const rebalanceVals = await tradeAccounting.getRebalanceTowardsHedgeUtils()
       await xsnx.rebalanceTowardsHedge(
         rebalanceVals[0], // susdToBurn
