@@ -94,5 +94,4 @@ contract ExtTA is TradeAccounting {
     function extGetActiveAssetSynthSymbol() public view returns(bytes32){
         return getActiveAssetSynthSymbol();
     }
-
 }

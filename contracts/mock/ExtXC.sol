@@ -32,4 +32,5 @@ contract ExtXC is xSNXCore {
     function approveMock(address _toApprove, address _tokenAddress) public {
         IERC20(_tokenAddress).approve(_toApprove, MAX_UINT);
     }
+
 }

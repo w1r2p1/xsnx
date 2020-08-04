@@ -55,7 +55,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
       const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await truffleAssert.reverts(
         xsnx.hedge(0, [0, 0], [0, 0], activeAsset, 0, { from: account1 }),
-        'Ownable: caller is not the owner',
+        'Non-admin caller',
       )
     })
 
