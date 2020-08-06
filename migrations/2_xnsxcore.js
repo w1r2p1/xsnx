@@ -108,6 +108,7 @@ module.exports = async function (deployer, network, accounts) {
                                                   synthetix.address,
                                                   susd.address,
                                                   usdc.address,
+                                                  accounts[1],
                                                   synthSymbols,
                                                   setComponentAddresses,
                                                 )
@@ -281,6 +282,7 @@ module.exports = async function (deployer, network, accounts) {
       web3.utils.fromAscii(s),
     )
     const SET_COMPONENT_ADDRESSES = [SET_ASSET_1, SET_ASSET_2]
+    const ADDRESS_VALIDATOR = '0x885583955F14970CbC0046B91297e9915f4DE6E4'
 
     const USDC_CURVE_INDEX = 1
     const SUSD_CURVE_INDEX = 3
@@ -294,6 +296,7 @@ module.exports = async function (deployer, network, accounts) {
         SNX_ADDRESS,
         SUSD_ADDRESS,
         USDC_ADDRESS,
+        ADDRESS_VALIDATOR,
         SYNTH_SYMBOLS,
         SET_COMPONENT_ADDRESSES,
       )

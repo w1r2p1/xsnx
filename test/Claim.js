@@ -1,6 +1,6 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
-const { assertBNEqual, BN_ZERO, DEC_18, bn, increaseTime, FIVE_HOURS, FOUR_DAYS } = require('./utils')
+const { assertBNEqual, BN_ZERO, DEC_18, bn, increaseTime, FOUR_DAYS } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const ExtTradeAccounting = artifacts.require('ExtTA')
 const MockSUSD = artifacts.require('MockSUSD')
@@ -143,7 +143,6 @@ contract('xSNXCore: Claim', async (accounts) => {
     })
 
     it('should claim if collateralization is over', async () => {
-      await increaseTime(FIVE_HOURS)
       const ethBalBefore = await tradeAccounting.getEthBalance()
       await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
       await web3.eth.sendTransaction({

@@ -10,6 +10,7 @@ contract ExtTA is TradeAccounting {
         address snxAddress,
         address susdAddress,
         address usdcAddress,
+        address addressValidator,
         bytes32[2] memory synthSymbols, 
         address[2] memory setComponentAddresses
     ) public TradeAccounting(
@@ -19,6 +20,7 @@ contract ExtTA is TradeAccounting {
         snxAddress,
         susdAddress,
         usdcAddress,
+        addressValidator,
         synthSymbols, 
         setComponentAddresses
     ) {}

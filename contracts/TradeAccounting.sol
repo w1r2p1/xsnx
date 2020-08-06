@@ -95,6 +95,7 @@ contract TradeAccounting is Whitelist {
     IKyberNetworkProxy private kyberNetworkProxy;
 
     address private caller;
+    address private addressValidator;
 
     address
         private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -104,7 +105,7 @@ contract TradeAccounting is Whitelist {
     address private usdcAddress;
 
     bool private isCurveSet;
-    uint256 private curveAddressUpdatedTimestamp;
+    address nextCurveAddress;
 
     bytes32 constant snx = "SNX";
     bytes32 constant susd = "sUSD";
@@ -121,6 +122,7 @@ contract TradeAccounting is Whitelist {
         address _snxAddress,
         address _susdAddress,
         address _usdcAddress,
+        address _addressValidator,
         bytes32[2] memory _synthSymbols,
         address[2] memory _setComponentAddresses
     ) public {
@@ -130,6 +132,7 @@ contract TradeAccounting is Whitelist {
         snxAddress = _snxAddress;
         susdAddress = _susdAddress;
         usdcAddress = _usdcAddress;
+        addressValidator = _addressValidator;
         synthSymbols = _synthSymbols;
         setComponentAddresses = _setComponentAddresses;
     }
@@ -245,7 +248,6 @@ contract TradeAccounting is Whitelist {
         uint256 _amount,
         uint256 _minReturn
     ) private {
-        require(!isCurveInWaitingPeriod(block.timestamp), "In waiting period");
         curveFi.exchange_underlying(
             _inputIndex,
             _outputIndex,
@@ -984,7 +986,9 @@ contract TradeAccounting is Whitelist {
     }
 
     function setCallerAddress(address _caller) public onlyOwner {
-        caller = _caller;
+        if(caller == address(0)){
+            caller = _caller;
+        }
     }
 
     function setExchangeRatesAddress() public onlyOwner {
@@ -995,16 +999,14 @@ contract TradeAccounting is Whitelist {
     }
 
     function setCurve(address curvePoolAddress, int128 _usdcIndex, int128 _susdIndex) public onlyOwner {
-        if (isCurveSet) {
-            // if updating Curve address (i.e., not initial setting of address on deployment),
-            // set timestamp which freezes all functions that touch Curve for CURVE_UPDATE_WAITING_PERIOD
-            curveAddressUpdatedTimestamp = block.timestamp;
+        if (address(curveFi) == address(0)) {
+            // if initial set on deployment, immediately activate Curve address
+            curveFi = ICurveFi(curvePoolAddress);
         } else {
-            // if initial set on deployment, toggle bool but don't set curveAddressUpdatedTimestamp
-            // to allow for Curve functionality to be available immediately
-            isCurveSet = true;
+            // if updating Curve address (i.e., not initial setting of address on deployment),
+            // store nextCurveAddress but don't activate until addressValidator has confirmed
+            nextCurveAddress = curvePoolAddress;
         }
-        curveFi = ICurveFi(curvePoolAddress);
         usdcIndex = _usdcIndex;
         susdIndex = _susdIndex;
     }
@@ -1023,17 +1025,10 @@ contract TradeAccounting is Whitelist {
         IERC20(tokenAddress).approve(address(curveFi), MAX_UINT);
     }
 
-    // if true, all functionality that touches Curve is disabled for CURVE_UPDATE_WAITING_PERIOD
-    function isCurveInWaitingPeriod(uint256 currentTimestamp)
-        public
-        view
-        returns (bool)
-    {
-        if (curveAddressUpdatedTimestamp == 0) return false;
-        if (
-            currentTimestamp.sub(CURVE_UPDATE_WAITING_PERIOD) <
-            curveAddressUpdatedTimestamp
-        ) return true;
+    function confirmCurveAddress(address _nextCurveAddress) public {
+        require(msg.sender == addressValidator, "Incorrect caller");
+        require(nextCurveAddress == _nextCurveAddress, "Addresses don't match");
+        curveFi = ICurveFi(nextCurveAddress);
     }
 
     function() external payable {}

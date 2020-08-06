@@ -30,8 +30,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
 
     uint256 private constant PERCENT = 100;
     uint256 private constant MAX_UINT = 2**256 - 1;
-    uint256 private constant BREATHING_PERIOD = 4 hours;
-    uint256 private constant LIQUIDATION_WAIT_PERIOD = 6 weeks;
+    uint256 private constant LIQUIDATION_WAIT_PERIOD = 3 weeks;
 
     TradeAccounting private tradeAccounting;
     IAddressResolver private addressResolver;
@@ -40,7 +39,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     uint256 public withdrawableEthFees;
     uint256 public withdrawableSusdFees;
 
-    uint256 public lastStakedTimestamp;
+    uint256 public lastClaimedTimestamp;
 
     event Mint(
         address indexed user,
@@ -181,14 +180,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     /*                                   Fund Management                                         */
     /* ========================================================================================= */
 
-    modifier isNotBreathingPeriod {
-        require(
-            block.timestamp > lastStakedTimestamp.add(BREATHING_PERIOD),
-            "Is breathing period"
-        );
-        _;
-    }
-
     /*
      * @notice Hedge strategy management function callable by admin
      * @dev Issues synths on Synthetix
@@ -205,7 +196,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minCurveReturns,
         address activeAsset,
         uint256 ethAllocation
-    ) external onlyOwnerOrManager whenNotPaused isNotBreathingPeriod {
+    ) external onlyOwnerOrManager whenNotPaused {
         _stake(mintAmount);
 
         _allocateToEth(ethAllocation, minKyberRates[0], minCurveReturns[0]);
@@ -231,7 +222,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     }
 
     function _stake(uint256 mintAmount) private {
-        lastStakedTimestamp = block.timestamp;
         ISynthetix(addressResolver.getAddress(synthetixName)).issueSynths(
             mintAmount
         );
@@ -251,6 +241,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minCurveReturns,
         bool feesClaimable
     ) external onlyOwnerOrManager {
+        lastClaimedTimestamp = block.timestamp;
         IFeePool feePool = IFeePool(addressResolver.getAddress(feePoolName));
 
         if (!feesClaimable) {
@@ -385,16 +376,15 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @notice Callable whenever ETH bal is less than (hedgeAssets / ETH_TARGET)
      * @dev Rebalances Set holdings to ETH holdings
      * @param redemptionQuantity: tradeAccounting.calculateSetToSellForRebalanceSetToEth()
-     * @param activeAsset: getAssetCurrentlyActiveInSet()
      * @param minKyberRate: kyber.getExpectedRate(currentSetAsset => ETH)
      */
     function rebalanceSetToEth(
         uint256 redemptionQuantity,
-        address activeAsset,
         uint256 minKyberRate
     ) external onlyOwnerOrManager whenNotPaused {
         _redeemRebalancingSet(redemptionQuantity);
 
+        address activeAsset = getAssetCurrentlyActiveInSet();
         uint256 activeAssetBalance = getActiveSetAssetBalance();
         _swapTokenToEther(activeAsset, activeAssetBalance, minKyberRate, 0);
     }
@@ -415,7 +405,10 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             _minCurveReturns[0]
         );
         _burnSynths(getSusdBalance());
-        _swapTokenToEther(snxAddress, _snxToSell, _minKyberRates[1], 0);
+
+        if(_snxToSell > 0){
+            _swapTokenToEther(snxAddress, _snxToSell, _minKyberRates[1], 0);
+        }
     }
 
     /*
@@ -429,7 +422,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 snxToSell
-    ) external onlyOwnerOrManager isNotBreathingPeriod {
+    ) external onlyOwnerOrManager {
         _unwindStakedPosition(
             totalSusdToBurn,
             activeAsset,
@@ -453,7 +446,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256 snxToSell
     ) external {
         require(
-            lastStakedTimestamp.add(LIQUIDATION_WAIT_PERIOD) < block.timestamp,
+            lastClaimedTimestamp.add(LIQUIDATION_WAIT_PERIOD) < block.timestamp,
             "Liquidation not available"
         );
 
