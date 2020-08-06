@@ -8,7 +8,6 @@ const {
   DEC_18,
   increaseTime,
   FOUR_DAYS,
-  FIVE_HOURS,
 } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -27,7 +26,7 @@ const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 contract(
   'xSNXCore, TradeAccounting: Address Setters and Utils',
   async (accounts) => {
-    const [deployer, account1, account2] = accounts
+    const [deployer, account1, account2, fakeCurveAddress] = accounts
     before(async () => {
       xsnx = await xSNXCore.deployed()
       addressResolver = await MockAddressResolver.deployed()
@@ -216,40 +215,6 @@ contract(
       })
     })
 
-    describe('Curve address setter waiting period', async () => {
-      it('should disable fund management functionality after being updated', async () => {
-        await tradeAccounting.setCurve(account1, 1, 3) // random address - just for demo
-        const amountSusd = bn(1000)
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
-          amountSusd,
-        )
-        await truffleAssert.reverts(
-          xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation),
-          'Is breathing period',
-        )
-      })
-
-      it('should enable fund mgmt functions after the waiting period', async () => {
-        await tradeAccounting.setCurve(curve.address, 1, 3)
-        const amountSusd = bn(1000)
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
-          amountSusd,
-        )
-        await increaseTime(FIVE_HOURS)
-        await truffleAssert.reverts(
-          xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation),
-          'In waiting period',
-        )
-
-        const THREE_DAYS = 60 * 60 * 24 * 3
-        await increaseTime(THREE_DAYS)
-        await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation)
-        assert(true)
-      })
-    })
-
     describe('Setting manager privilege', async () => {
       it('should be able to set a manager privilege', async () => {
         await xsnx.setManagerAddress(account1)
@@ -269,7 +234,6 @@ contract(
           amountSusd,
         )
 
-        await increaseTime(FIVE_HOURS)
         await xsnx.hedge(
           amountSusd,
           [0, 0],
@@ -295,12 +259,97 @@ contract(
           amountSusd,
         )
 
-        await increaseTime(FIVE_HOURS)
         await truffleAssert.reverts(
           xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation, {
             from: account2,
           }),
           'Non-admin caller',
+        )
+      })
+    })
+
+    describe('Curve address setter', async () => {
+      it('should allow admin to set Curve address successfully on initial deployment', async () => {
+        await tradeAccounting.setCurve(curve.address, 1, 3)
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+        const debtBalance = await synthetix.debtBalanceOf(
+          xsnx.address,
+          web3.utils.fromAscii('sUSD'),
+        )
+        const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+
+        await xsnx.hedge(
+          amountSusd,
+          ['0', '0'],
+          ['0', '0'],
+          activeAsset,
+          ethAllocation,
+        )
+
+        // tx executed with Curve address successfully
+        assert(true)
+      })
+
+      it('should not change active Curve address when admin sets next Curve address', async () => {
+        // curveFi contract and nextCurveAddress are private vars so we test indirectly
+        // fakeCurveAddress is not a Curve mock so if set, hedge tx should fail
+        await tradeAccounting.setCurve(fakeCurveAddress, 1, 3)
+
+        await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+        const debtBalance = await synthetix.debtBalanceOf(
+          xsnx.address,
+          web3.utils.fromAscii('sUSD'),
+        )
+        const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+
+        await xsnx.hedge(
+          amountSusd,
+          ['0', '0'],
+          ['0', '0'],
+          activeAsset,
+          ethAllocation,
+        )
+
+        // since hedge tx succeeds, we know old Curve address still in use
+        assert(true)
+      })
+
+      it('should change active Curve address when addressValidator confirms it', async () => {
+        // account1 set as addressValidator in deployment script
+        await tradeAccounting.confirmCurveAddress(fakeCurveAddress, {
+          from: account1,
+        })
+
+        await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
+        const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+        const debtBalance = await synthetix.debtBalanceOf(
+          xsnx.address,
+          web3.utils.fromAscii('sUSD'),
+        )
+        const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+        const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+          amountSusd,
+        )
+
+        // this should fail because fakeCurveAddress is now active and it isn't a Curve Mock
+        await truffleAssert.reverts(
+          xsnx.hedge(
+            amountSusd,
+            ['0', '0'],
+            ['0', '0'],
+            activeAsset,
+            ethAllocation,
+          ),
         )
       })
     })

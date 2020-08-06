@@ -1,4 +1,4 @@
-const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime, FIVE_HOURS } = require('./utils')
+const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime } = require('./utils')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
@@ -59,7 +59,6 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
     })
 
     it('should calculate total sUSD to burn for a given redemption', async () => {
-      await increaseTime(FIVE_HOURS)
       await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
       await web3.eth.sendTransaction({
         from: deployerAccount,

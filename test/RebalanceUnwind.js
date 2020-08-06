@@ -4,8 +4,7 @@ const {
   bn,
   DEC_18,
   increaseTime,
-  FIVE_HOURS,
-  FOUR_DAYS
+  FOUR_DAYS,
 } = require('./utils')
 const truffleAssert = require('truffle-assertions')
 const xSNXCore = artifacts.require('ExtXC')
@@ -20,6 +19,7 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
+const MockFeePool = artifacts.require('MockFeePool')
 
 contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
   const [deployerAccount, account1] = accounts
@@ -37,6 +37,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
     kyberProxy = await MockKyberProxy.deployed()
     exchangeRates = await MockExchangeRates.deployed()
     curve = await MockCurveFi.deployed()
+    feePool = await MockFeePool.deployed()
   })
 
   describe('Unwinding staked position', async () => {
@@ -77,7 +78,6 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       const someAmountDebt = bn(debtValueBefore).div(bn(2))
       const someAmountSnx = bn(snxBalanceBefore).div(bn(6))
 
-      await increaseTime(FIVE_HOURS)
       await xsnx.unwindStakedPosition(
         someAmountDebt,
         activeAsset,
@@ -99,38 +99,10 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
   })
 
   describe('Liquidation Unwind', async () => {
-    it('should revert if there has been a staking transaction within the liquidation wait period', async () => {
-      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
-      await web3.eth.sendTransaction({
-        from: deployerAccount,
-        value: web3.utils.toWei('1'),
-        to: kyberProxy.address,
-      })
-      await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
-      await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
-      await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
-      await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+    it('should revert if there has been a claiming transaction within the liquidation wait period', async () => {
+      await susd.transfer(feePool.address, web3.utils.toWei('5'))
+      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
 
-      await xsnx.mint('0', { value: web3.utils.toWei('0.02') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-      const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
-      const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
-        web3.utils.fromAscii('sUSD'),
-      )
-      const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
-      const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
-        amountSusd,
-      )
-
-      await increaseTime(FIVE_HOURS)
-      await xsnx.hedge(
-        amountSusd,
-        ['0', '0'],
-        ['0', '0'],
-        activeAsset,
-        ethAllocation,
-      )
       const susdToBurn = web3.utils.toWei('0.05')
       const minRates = ['0', '0']
       const snxToSell = web3.utils.toWei('0.02')
@@ -142,8 +114,8 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
 
     // Some fraction of SNX position is likely still locked due to escrow, debt mgmt, etc
     it('should unwind an SNX position into ETH if waiting period has elapsed', async () => {
-      const SEVEN_WEEKS = 60 * 60 * 24 * 7 * 7
-      await increaseTime(SEVEN_WEEKS)
+      const FOUR_WEEKS = 60 * 60 * 24 * 7 * 4
+      await increaseTime(FOUR_WEEKS)
 
       const snxBal = await tradeAccounting.getSnxBalance()
 

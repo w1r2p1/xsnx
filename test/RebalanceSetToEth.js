@@ -70,7 +70,7 @@ contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
       const setToSell = await tradeAccounting.calculateSetToSellForRebalanceSetToEth()
       assert(true)
 
-      await xsnx.rebalanceSetToEth(setToSell, activeAsset, '0')
+      await xsnx.rebalanceSetToEth(setToSell, '0')
 
       await truffleAssert.reverts(
         tradeAccounting.calculateSetToSellForRebalanceSetToEth(),
