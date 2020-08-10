@@ -253,7 +253,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             _burnSynths(getSusdBalance());
         }
 
-        // feePool.claimFees();
         IFeePool(addressResolver.getAddress(feePoolName)).claimFees();
         withdrawableSusdFees = withdrawableSusdFees.add(
             getSusdBalance().div(feeDivisors.claimFee)
