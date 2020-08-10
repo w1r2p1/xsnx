@@ -31,7 +31,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant LIQUIDATION_WAIT_PERIOD = 3 weeks;
 
-    IFeePool private feePool;
     ISynthetix private synthetix;
     TradeAccounting private tradeAccounting;
     IAddressResolver private addressResolver;
@@ -254,7 +253,8 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             _burnSynths(getSusdBalance());
         }
 
-        feePool.claimFees();
+        // feePool.claimFees();
+        IFeePool(addressResolver.getAddress(feePoolName)).claimFees();
         withdrawableSusdFees = withdrawableSusdFees.add(
             getSusdBalance().div(feeDivisors.claimFee)
         );
@@ -276,7 +276,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256 _minKyberRate,
         uint256 _minCurveReturn
     ) private {
-        if(_amount > 0){
+        if (_amount > 0) {
             IERC20(_fromToken).transfer(address(tradeAccounting), _amount);
             tradeAccounting.swapTokenToEther(
                 _fromToken,
@@ -370,10 +370,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @dev Rebalances Set holdings to ETH holdings
      * @param minRate: kyber.getExpectedRate(activeAsset => ETH)
      */
-    function rebalanceSetToEth(uint256 minRate)
-        external
-        onlyOwnerOrManager
-    {
+    function rebalanceSetToEth(uint256 minRate) external onlyOwnerOrManager {
         uint256 redemptionQuantity = tradeAccounting
             .calculateSetToSellForRebalanceSetToEth();
         _redeemRebalancingSet(redemptionQuantity);
@@ -453,7 +450,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             snxToSell
         );
 
-        uint susdBalRemaining = getSusdBalance();
+        uint256 susdBalRemaining = getSusdBalance();
         _swapTokenToEther(susdAddress, susdBalRemaining, 0, 0);
     }
 
@@ -540,11 +537,6 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         synthetix = ISynthetix(synthetixAddress);
     }
 
-    function setFeePoolAddress() public {
-        address feePoolAddress = addressResolver.getAddress(feePoolName);
-        feePool = IFeePool(feePoolAddress);
-    }
-
     function setManagerAddress(address _manager) public onlyOwner {
         manager = _manager;
     }
@@ -599,5 +591,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         IERC20(tokenAddress).approve(setTransferProxy, MAX_UINT);
     }
 
-    function() external payable {}
+    function() external payable {
+        require(msg.sender == address(tradeAccounting), "Incorrect sender");
+    }
 }

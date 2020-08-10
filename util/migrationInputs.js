@@ -7,8 +7,8 @@ const isEthRsi6040 = deployment === 'ETHRSI6040'
 
 const migrationInputs = {
   SET_ADDRESS: {
-    // kovan: '0xb26fe962aa6c1d213c89af22a1fb278c2f29caaa', // in USDC
-    kovan: '0xF8e8111720e86ce1D6d3710a1e34B57e1D54aef3', // in WETH
+    kovan: '0x90577B0489e76a1D7bb207AaF33EcebFa1ED0944', // in USDC
+    // kovan: '0xF8e8111720e86ce1D6d3710a1e34B57e1D54aef3', // in WETH
     mainnet: isEthRsi6040 ? '' : '',
   },
   SET_ASSET_1: {

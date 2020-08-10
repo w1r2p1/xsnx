@@ -176,11 +176,6 @@ module.exports = async function (deployer, network, accounts) {
                                                           'xsnx: synthetix set',
                                                         )
 
-                                                        await xsnx.setFeePoolAddress()
-                                                        console.log(
-                                                          'xsnx: fee pool set',
-                                                        )
-
                                                         await tradeAccounting.setInstanceAddress(
                                                           xsnx.address,
                                                         )
@@ -196,15 +191,7 @@ module.exports = async function (deployer, network, accounts) {
                                                         console.log(
                                                           'ta: synth state set',
                                                         )
-                                                        await tradeAccounting.setExchangeRatesAddress()
-                                                        console.log(
-                                                          'ta: exch rates set',
-                                                        )
-                                                        await tradeAccounting.setRewardEscrowAddress()
-                                                        console.log(
-                                                          'ta: exch rates set',
-                                                        )
-
+                       
                                                         await tradeAccounting.approveKyber(
                                                           synthetix.address,
                                                         )
@@ -341,8 +328,6 @@ module.exports = async function (deployer, network, accounts) {
 
             await xsnx.setSynthetixAddress()
             console.log('xsnx: synthetix set')
-            await xsnx.setFeePoolAddress()
-            console.log('xsnx: fee pool set')
 
             await tradeAccounting.setInstanceAddress(xsnx.address)
             console.log('ta: xsnx address set')
@@ -351,10 +336,6 @@ module.exports = async function (deployer, network, accounts) {
             console.log('ta: synthetix set')
             await tradeAccounting.setSynthetixStateAddress()
             console.log('ta: synth state set')
-            await tradeAccounting.setExchangeRatesAddress()
-            console.log('ta: exch rates set')
-            await tradeAccounting.setRewardEscrowAddress()
-            console.log('ta: reward escrow set')
             await tradeAccounting.setCurve(
               CURVE_POOL,
               USDC_CURVE_INDEX,
