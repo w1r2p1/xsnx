@@ -84,7 +84,6 @@ contract('xSNXCore: Claim', async (accounts) => {
       await usdc.transfer(curve.address, '100000000')
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
 
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       let amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       amountSusd = amountSusd.sub(bn(1)) // to satisfy isFeesClaimable
@@ -95,7 +94,6 @@ contract('xSNXCore: Claim', async (accounts) => {
         amountSusd,
         ['0', '0'],
         ['0', '0'],
-        activeAsset,
         ethAllocation,
       )
 
@@ -154,7 +152,6 @@ contract('xSNXCore: Claim', async (accounts) => {
       await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
       await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const debtBalance = await synthetix.debtBalanceOf(
         xsnx.address,
@@ -169,7 +166,6 @@ contract('xSNXCore: Claim', async (accounts) => {
         amountSusd,
         ['0', '0'],
         ['0', '0'],
-        activeAsset,
         ethAllocation,
       )
 

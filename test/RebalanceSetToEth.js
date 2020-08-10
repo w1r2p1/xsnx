@@ -47,7 +47,6 @@ contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
       await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(9)) // 900% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
@@ -58,7 +57,6 @@ contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
         amountSusd,
         ['0', '0'],
         ['0', '0'],
-        activeAsset,
         ethAllocation,
       )
 
@@ -70,7 +68,7 @@ contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
       const setToSell = await tradeAccounting.calculateSetToSellForRebalanceSetToEth()
       assert(true)
 
-      await xsnx.rebalanceSetToEth(setToSell, '0')
+      await xsnx.rebalanceSetToEth('0')
 
       await truffleAssert.reverts(
         tradeAccounting.calculateSetToSellForRebalanceSetToEth(),

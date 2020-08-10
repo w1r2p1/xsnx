@@ -17,10 +17,10 @@ contract MockSetToken is MockERC20 {
     function unitShares() external view returns(uint) {
         // weth
         if(activeAssetIndex == 0){
-            return 902151;
+            return 242286;
         }
         // usdc
-        return 402709;
+        return 359702;
     }
     function naturalUnit() external view returns(uint){
         if(activeAssetIndex == 0){

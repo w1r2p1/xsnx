@@ -47,7 +47,6 @@ contract('xSNXCore: Rebalances', async (accounts) => {
       await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
@@ -58,7 +57,6 @@ contract('xSNXCore: Rebalances', async (accounts) => {
         amountSusd,
         ['0', '0'],
         ['0', '0'],
-        activeAsset,
         ethAllocation,
       )
 
@@ -68,7 +66,7 @@ contract('xSNXCore: Rebalances', async (accounts) => {
       const debtValue = await tradeAccounting.extGetContractDebtValue()
       const issuanceRatio = await tradeAccounting.extGetIssuanceRatio()
 
-      const susdToFixRatio = await tradeAccounting.calculateSusdToBurnToFixRatio(
+      const susdToFixRatio = await tradeAccounting.extCalculateSusdToBurnToFixRatio(
         snxValueHeld,
         debtValue,
         issuanceRatio,
@@ -99,15 +97,12 @@ contract('xSNXCore: Rebalances', async (accounts) => {
     })
 
     it('should be able to rebalance to hedge assets when necessary', async () => {
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
-
       const isRequired = await tradeAccounting.isRebalanceTowardsHedgeRequired()
       assert.equal(isRequired, true)
 
       const rebalanceVals = await tradeAccounting.getRebalanceTowardsHedgeUtils()
       await xsnx.rebalanceTowardsHedge(
         rebalanceVals[0], // susdToBurn
-        activeAsset,
         [0, 0],
         [0, 0],
         rebalanceVals[1], // snxToSell

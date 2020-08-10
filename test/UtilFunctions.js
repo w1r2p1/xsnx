@@ -47,18 +47,27 @@ contract(
     describe('Address Setters', async () => {
       // setters executed in deployment script
       // but difficult to test private variable setters directly
+      it('should be able to set the Synthetix address on TradeAccounting', async () => {
+        await tradeAccounting.setSynthetixAddress()
+        assert(true)
+      })
       it('should be able to set the Synthetix State address on TradeAccounting', async () => {
         await tradeAccounting.setSynthetixStateAddress()
         assert(true)
       })
 
       it('should be able to set the xSNX address on TradeAccounting', async () => {
-        await tradeAccounting.setCallerAddress(xsnx.address)
+        await tradeAccounting.setInstanceAddress(xsnx.address)
         assert(true)
       })
 
       it('should be able to set the Exchange Rates address on TradeAccounting', async () => {
         await tradeAccounting.setExchangeRatesAddress()
+        assert(true)
+      })
+
+      it('should be able to set the Reward escrow address on TradeAccounting', async () => {
+        await tradeAccounting.setRewardEscrowAddress()
         assert(true)
       })
     })
@@ -161,7 +170,6 @@ contract(
         await usdc.transfer(curve.address, '100000000')
 
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
         const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
@@ -172,7 +180,6 @@ contract(
           amountSusd,
           ['0', '0'],
           ['0', '0'],
-          activeAsset,
           ethAllocation,
         )
 
@@ -197,24 +204,6 @@ contract(
       })
     })
 
-    describe('Whitelisting addresses from fees', async () => {
-      it('should be able to exempt a user from mint/burn fees', async () => {
-        await tradeAccounting.addToWhitelist(account1)
-
-        const ethPayable = web3.utils.toWei('0.01')
-        const ethSnxRate = bn(100)
-        const expectedSnxBought = bn(ethPayable).mul(ethSnxRate) // no fee extracted
-        const snxBalanceBefore = await tradeAccounting.getSnxBalance()
-        await xsnx.mint('0', { value: ethPayable, from: account1 })
-        const snxBalanceAfter = await tradeAccounting.getSnxBalance()
-
-        assertBNEqual(
-          bn(snxBalanceAfter),
-          bn(snxBalanceBefore).add(expectedSnxBought),
-        )
-      })
-    })
-
     describe('Setting manager privilege', async () => {
       it('should be able to set a manager privilege', async () => {
         await xsnx.setManagerAddress(account1)
@@ -223,7 +212,6 @@ contract(
       it('should give the manager management privileges', async () => {
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
 
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
           xsnx.address,
@@ -238,7 +226,6 @@ contract(
           amountSusd,
           [0, 0],
           [0, 0],
-          activeAsset,
           ethAllocation,
           { from: account1 },
         )
@@ -248,7 +235,6 @@ contract(
 
       it('should still exclude non-admins from mgmt privileges', async () => {
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
           xsnx.address,
@@ -260,7 +246,7 @@ contract(
         )
 
         await truffleAssert.reverts(
-          xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation, {
+          xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation, {
             from: account2,
           }),
           'Non-admin caller',
@@ -271,7 +257,6 @@ contract(
     describe('Curve address setter', async () => {
       it('should allow admin to set Curve address successfully on initial deployment', async () => {
         await tradeAccounting.setCurve(curve.address, 1, 3)
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
           xsnx.address,
@@ -286,7 +271,6 @@ contract(
           amountSusd,
           ['0', '0'],
           ['0', '0'],
-          activeAsset,
           ethAllocation,
         )
 
@@ -300,7 +284,6 @@ contract(
         await tradeAccounting.setCurve(fakeCurveAddress, 1, 3)
 
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
           xsnx.address,
@@ -315,7 +298,6 @@ contract(
           amountSusd,
           ['0', '0'],
           ['0', '0'],
-          activeAsset,
           ethAllocation,
         )
 
@@ -330,7 +312,6 @@ contract(
         })
 
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-        const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
           xsnx.address,
@@ -347,7 +328,6 @@ contract(
             amountSusd,
             ['0', '0'],
             ['0', '0'],
-            activeAsset,
             ethAllocation,
           ),
         )

@@ -56,20 +56,13 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
 
-      await xsnx.hedge(
-        amountSusd,
-        ['0', '0'],
-        ['0', '0'],
-        activeAsset,
-        ethAllocation,
-      )
+      await xsnx.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
 
       const debtValueBefore = await tradeAccounting.extGetContractDebtValue() // usd terms
       const ethBalBefore = await tradeAccounting.getEthBalance()
@@ -80,13 +73,10 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
 
       await xsnx.unwindStakedPosition(
         someAmountDebt,
-        activeAsset,
         ['0', '0'],
         ['0', '0'],
         someAmountSnx,
       )
-
-      const hedgeAssetsValueUsd = await tradeAccounting.extCalculateHedgeAssetsValueInUsd()
 
       const debtValueAfter = await tradeAccounting.extGetContractDebtValue()
       const ethBalAfter = await tradeAccounting.getEthBalance()
@@ -96,6 +86,57 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
       assertBNEqual(debtValueBefore.gt(debtValueAfter), true)
     })
+  })
+})
+
+contract('xSNXCore: Liquidation Unwind', async (accounts) => {
+  const [deployerAccount, account1] = accounts
+
+  beforeEach(async () => {
+    xsnx = await xSNXCore.deployed()
+    tradeAccounting = await TradeAccounting.deployed()
+    synthetix = await MockSynthetix.deployed()
+    rebalancingModule = await MockRebalancingModule.deployed()
+    setToken = await MockSetToken.deployed()
+    rewardEscrow = await MockRewardEscrow.deployed()
+    susd = await MockSUSD.deployed()
+    usdc = await MockUSDC.deployed()
+    weth = await MockWETH.deployed()
+    kyberProxy = await MockKyberProxy.deployed()
+    exchangeRates = await MockExchangeRates.deployed()
+    curve = await MockCurveFi.deployed()
+    feePool = await MockFeePool.deployed()
+
+    await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+    await web3.eth.sendTransaction({
+      from: deployerAccount,
+      value: web3.utils.toWei('1'),
+      to: kyberProxy.address,
+    })
+    await susd.transfer(synthetix.address, web3.utils.toWei('1000'))
+    await weth.transfer(kyberProxy.address, web3.utils.toWei('60'))
+    await weth.transfer(rebalancingModule.address, web3.utils.toWei('60'))
+    await synthetix.transfer(kyberProxy.address, web3.utils.toWei('1000'))
+    await susd.transfer(curve.address, web3.utils.toWei('100'))
+    await usdc.transfer(curve.address, '100000000')
+
+    await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+    const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
+    const debtBalance = await synthetix.debtBalanceOf(
+      xsnx.address,
+      web3.utils.fromAscii('sUSD'),
+    )
+    const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
+    const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
+      amountSusd,
+    )
+
+    await xsnx.hedge(
+      amountSusd.sub(bn(1)),
+      ['0', '0'],
+      ['0', '0'],
+      ethAllocation,
+    )
   })
 
   describe('Liquidation Unwind', async () => {

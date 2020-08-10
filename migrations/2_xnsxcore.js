@@ -105,7 +105,6 @@ module.exports = async function (deployer, network, accounts) {
                                                   setToken.address,
                                                   kyberProxy.address,
                                                   addressResolver.address,
-                                                  synthetix.address,
                                                   susd.address,
                                                   usdc.address,
                                                   accounts[1],
@@ -172,18 +171,36 @@ module.exports = async function (deployer, network, accounts) {
                                                           'xsnx: fee divisors set',
                                                         )
 
-                                                        await tradeAccounting.setCallerAddress(
+                                                        await xsnx.setSynthetixAddress()
+                                                        console.log(
+                                                          'xsnx: synthetix set',
+                                                        )
+
+                                                        await xsnx.setFeePoolAddress()
+                                                        console.log(
+                                                          'xsnx: fee pool set',
+                                                        )
+
+                                                        await tradeAccounting.setInstanceAddress(
                                                           xsnx.address,
                                                         )
                                                         console.log(
                                                           'ta: caller address set',
                                                         )
 
+                                                        await tradeAccounting.setSynthetixAddress()
+                                                        console.log(
+                                                          'ta: synthetix set',
+                                                        )
                                                         await tradeAccounting.setSynthetixStateAddress()
                                                         console.log(
                                                           'ta: synth state set',
                                                         )
                                                         await tradeAccounting.setExchangeRatesAddress()
+                                                        console.log(
+                                                          'ta: exch rates set',
+                                                        )
+                                                        await tradeAccounting.setRewardEscrowAddress()
                                                         console.log(
                                                           'ta: exch rates set',
                                                         )
@@ -293,7 +310,6 @@ module.exports = async function (deployer, network, accounts) {
         SET_ADDRESS,
         KYBER_PROXY,
         ADDRESS_RESOLVER,
-        SNX_ADDRESS,
         SUSD_ADDRESS,
         USDC_ADDRESS,
         ADDRESS_VALIDATOR,
@@ -323,13 +339,22 @@ module.exports = async function (deployer, network, accounts) {
             await xsnx.setFeeDivisors('400', '400', '40')
             console.log('xsnx: fee divisors set')
 
-            await tradeAccounting.setCallerAddress(xsnx.address)
-            console.log('ta: caller address set')
+            await xsnx.setSynthetixAddress()
+            console.log('xsnx: synthetix set')
+            await xsnx.setFeePoolAddress()
+            console.log('xsnx: fee pool set')
 
+            await tradeAccounting.setInstanceAddress(xsnx.address)
+            console.log('ta: xsnx address set')
+
+            await tradeAccounting.setSynthetixAddress()
+            console.log('ta: synthetix set')
             await tradeAccounting.setSynthetixStateAddress()
             console.log('ta: synth state set')
             await tradeAccounting.setExchangeRatesAddress()
             console.log('ta: exch rates set')
+            await tradeAccounting.setRewardEscrowAddress()
+            console.log('ta: reward escrow set')
             await tradeAccounting.setCurve(
               CURVE_POOL,
               USDC_CURVE_INDEX,

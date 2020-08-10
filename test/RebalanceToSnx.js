@@ -47,7 +47,6 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
       await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
@@ -58,7 +57,6 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
         amountSusd,
         ['0', '0'],
         ['0', '0'],
-        activeAsset,
         ethAllocation,
       )
 
@@ -67,9 +65,7 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
       const isRequired = await tradeAccounting.isRebalanceTowardsSnxRequired()
       assert.equal(isRequired, true)
 
-      const rebalanceUtils = await tradeAccounting.getRebalanceTowardsSnxUtils()
-
-      await xsnx.rebalanceTowardsSnx('0', rebalanceUtils[0], rebalanceUtils[1])
+      await xsnx.rebalanceTowardsSnx('0')
 
       const isRequiredAfter = await tradeAccounting.isRebalanceTowardsSnxRequired()
       assert.equal(isRequiredAfter, false)

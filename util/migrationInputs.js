@@ -7,7 +7,8 @@ const isEthRsi6040 = deployment === 'ETHRSI6040'
 
 const migrationInputs = {
   SET_ADDRESS: {
-    kovan: '0x76f579bb28a470913AbE98fc9d76145c26839af7', // LINKETHRSI
+    // kovan: '0xb26fe962aa6c1d213c89af22a1fb278c2f29caaa', // in USDC
+    kovan: '0xF8e8111720e86ce1D6d3710a1e34B57e1D54aef3', // in WETH
     mainnet: isEthRsi6040 ? '' : '',
   },
   SET_ASSET_1: {
@@ -15,7 +16,7 @@ const migrationInputs = {
     mainnet: isEthRsi6040 ? '' : '',
   },
   SET_ASSET_2: {
-    kovan: '0xA91FDf706d8675eE43E5Ac4cBDb5d615bd5921a8', // USDC
+    kovan: '0x15758350DECEA0E5A96cFe9024e3f352d039905a', // USDC
     mainnet: isEthRsi6040 ? '' : '',
   },
   KYBER_PROXY: {
@@ -34,7 +35,7 @@ const migrationInputs = {
     mainnet: '',
   },
   CURVE_POOL: {
-    kovan: '0x1daB6560494B04473A0BE3E7D83CF3Fdf3a51828',
+    kovan: '0xcd8F4131730900720B1362d7f1a88213BB42Da3c',
     mainnet: '0xA5407eAE9Ba41422680e2e00537571bcC53efBfD',
   },
   SUSD_ADDRESS: {
@@ -48,7 +49,7 @@ const migrationInputs = {
     mainnet: '',
   },
   USDC_ADDRESS: {
-    kovan: '0xA91FDf706d8675eE43E5Ac4cBDb5d615bd5921a8',
+    kovan: '0x15758350DECEA0E5A96cFe9024e3f352d039905a',
     mainnet: ''
   },
   SET_TRANSFER_PROXY: {
@@ -56,7 +57,7 @@ const migrationInputs = {
     mainnet: '',
   },
   SYNTH_SYMBOLS: {
-    kovan: ['sETH', 'sLINK'],
+    kovan: ['sETH', 'sUSD'],
     mainnet: isEthRsi6040 ? [] : [],
   },
 }

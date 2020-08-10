@@ -43,18 +43,16 @@ contract('xSNXCore: Hedge function', async (accounts) => {
   describe('Staking and hedging', async () => {
     it('should revert when paused', async () => {
       await xsnx.pause()
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await truffleAssert.reverts(
-        xsnx.hedge(0, [0, 0], [0, 0], activeAsset, 0),
+        xsnx.hedge(0, [0, 0], [0, 0], 0),
         'Pausable: paused',
       )
     })
 
     it('should revert when called by non-owner', async () => {
       await xsnx.unpause()
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       await truffleAssert.reverts(
-        xsnx.hedge(0, [0, 0], [0, 0], activeAsset, 0, { from: account1 }),
+        xsnx.hedge(0, [0, 0], [0, 0], 0, { from: account1 }),
         'Non-admin caller',
       )
     })
@@ -62,13 +60,12 @@ contract('xSNXCore: Hedge function', async (accounts) => {
     it('should result in an ETH balance', async () => {
       const ethBalBefore = await web3.eth.getBalance(xsnx.address)
       await xsnx.mint('0', { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], activeAsset, ethAllocation, {
+      await xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation, {
         from: deployerAccount,
       })
       const ethBalAfter = await web3.eth.getBalance(xsnx.address)

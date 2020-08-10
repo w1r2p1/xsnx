@@ -7,7 +7,6 @@ contract ExtTA is TradeAccounting {
         address setAddress, 
         address kyberProxyAddress, 
         address addressResolverAddress, 
-        address snxAddress,
         address susdAddress,
         address usdcAddress,
         address addressValidator,
@@ -17,7 +16,6 @@ contract ExtTA is TradeAccounting {
         setAddress, 
         kyberProxyAddress, 
         addressResolverAddress,
-        snxAddress,
         susdAddress,
         usdcAddress,
         addressValidator,
@@ -95,5 +93,8 @@ contract ExtTA is TradeAccounting {
     }
     function extGetActiveAssetSynthSymbol() public view returns(bytes32){
         return getActiveAssetSynthSymbol();
+    }
+    function extCalculateSusdToBurnToFixRatio(uint snxValueHeld, uint contractDebtValue, uint issuanceRatio) public view returns(uint){
+        return calculateSusdToBurnToFixRatio(snxValueHeld, contractDebtValue, issuanceRatio);
     }
 }

@@ -73,7 +73,6 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
       await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
 
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
@@ -85,7 +84,6 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
         amountSusd,
         [0, 0],
         [0, 0],
-        activeAsset,
         ethAllocation,
       )
 
@@ -123,7 +121,7 @@ const calculateSusdToFixRatio = async () => {
   const snxValueHeld = web3.utils.toWei('10')
   const contractDebtValue = web3.utils.toWei('1.3') // debtToBurn for 800% c-ratio is 0.05e18
   const issuanceRatio = await tradeAccounting.extGetIssuanceRatio()
-  const susdToFixRatio = await tradeAccounting.calculateSusdToBurnToFixRatio(
+  const susdToFixRatio = await tradeAccounting.extCalculateSusdToBurnToFixRatio(
     snxValueHeld,
     contractDebtValue,
     issuanceRatio,

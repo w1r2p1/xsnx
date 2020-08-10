@@ -1,5 +1,5 @@
 const { BN } = require('@openzeppelin/test-helpers')
-const { assertBNEqual, BN_ZERO, DEC_18, bn } = require('./utils')
+const { assertBNEqual, BN_ZERO, DEC_18, DEC_6, bn } = require('./utils')
 const ExtTradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
@@ -17,8 +17,6 @@ contract(
   'TradeAccounting: Set Protocol: 18 Dec Active Asset',
   async (accounts) => {
     const [deployerAccount] = accounts
-
-    const tokenAmount = web3.utils.toWei('100')
 
     before(async () => {
       xsnx = await xSNXCore.deployed()
@@ -50,20 +48,13 @@ contract(
       await usdc.transfer(curve.address, '100000000')
 
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
 
-      await xsnx.hedge(
-        amountSusd,
-        ['0', '0'],
-        ['0', '0'],
-        activeAsset,
-        ethAllocation,
-      )
+      await xsnx.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
     })
 
     describe('Set Issuance and Redemption with 18 decimal asset (WETH)', async () => {
@@ -116,6 +107,7 @@ contract(
       })
 
       it('should register a balance in the active asset', async () => {
+        await weth.transfer(xsnx.address, '100')
         const assetBal = await tradeAccounting.getActiveSetAssetBalance()
         assertBNEqual(assetBal.gt(BN_ZERO), true)
       })
@@ -180,6 +172,34 @@ contract(
         )
         assertBNEqual(setRedeemable, setRedeemableCheck)
       })
+
+      it('should calculate Set holdings in wei correctly', async () => {
+        // e.g. 100 usdc or 10 weth underlying Set holdings
+        const underlyingTokens = await tradeAccounting.extGetSetCollateralTokens()
+        const decimals = await weth.decimals()
+        const underlyingTokensAdjusted = bn(underlyingTokens)
+          .mul(DEC_18)
+          .div(DEC_18) // WETH = 18 dec
+
+        const activeAssetSymbol = await tradeAccounting.extGetActiveAssetSynthSymbol()
+        let activeAssetUsdRate = await exchangeRates.rateAndUpdatedTime(
+          activeAssetSymbol,
+        )
+        activeAssetUsdRate = activeAssetUsdRate[0]
+
+        let ethUsdRate = await exchangeRates.rateAndUpdatedTime(
+          web3.utils.fromAscii('sETH'),
+        )
+        ethUsdRate = ethUsdRate[0]
+
+        const setValueEth = bn(underlyingTokensAdjusted)
+          .mul(bn(activeAssetUsdRate))
+          .div(bn(ethUsdRate))
+
+        const setValueEthContract = await tradeAccounting.getSetHoldingsValueInWei()
+
+        assertBNEqual(setValueEth, setValueEthContract)
+      })
     })
   },
 )
@@ -202,8 +222,12 @@ contract(
       kyberProxy = await MockKyberProxy.deployed()
       rebalancingModule = await MockRebalancingModule.deployed()
       curve = await MockCurveFi.deployed()
+      exchangeRates = await MockExchangeRates.deployed()
 
-      await setToken.transfer(rebalancingModule.address, web3.utils.toWei('20'))
+      await setToken.transfer(
+        rebalancingModule.address,
+        web3.utils.toWei('1000'),
+      )
       await web3.eth.sendTransaction({
         from: deployerAccount,
         value: web3.utils.toWei('1'),
@@ -222,7 +246,6 @@ contract(
       await setToken.toggleActiveAssetIndex()
       await collateralSetToken.toggleActiveAssetIndex()
 
-      const activeAsset = await tradeAccounting.getAssetCurrentlyActiveInSet()
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
@@ -233,7 +256,6 @@ contract(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
-        activeAsset,
         ethAllocation,
       )
     })
@@ -289,6 +311,7 @@ contract(
 
       // residue/dust still there but most will have been allocated to Set
       it('should register a balance in the active asset', async () => {
+        await usdc.transfer(xsnx.address, '100')
         const assetBal = await tradeAccounting.getActiveSetAssetBalance()
         assertBNEqual(assetBal.gt(BN_ZERO), true)
       })
@@ -350,6 +373,33 @@ contract(
           susdToBurn,
         )
         assertBNEqual(setRedeemable, setRedeemableCheck)
+      })
+
+      it('should calculate Set holdings in wei correctly', async () => {
+        // e.g. 100 usdc or 10 weth underlying Set holdings
+        const underlyingTokens = await tradeAccounting.extGetSetCollateralTokens()
+        const underlyingTokensAdjusted = bn(underlyingTokens)
+          .mul(DEC_18)
+          .div(DEC_6) // USDC = 6 dec
+
+        const activeAssetSymbol = await tradeAccounting.extGetActiveAssetSynthSymbol()
+        let activeAssetUsdRate = await exchangeRates.rateAndUpdatedTime(
+          activeAssetSymbol,
+        )
+        activeAssetUsdRate = activeAssetUsdRate[0]
+
+        let ethUsdRate = await exchangeRates.rateAndUpdatedTime(
+          web3.utils.fromAscii('sETH'),
+        )
+        ethUsdRate = ethUsdRate[0]
+
+        const setValueEth = bn(underlyingTokensAdjusted)
+          .mul(bn(activeAssetUsdRate))
+          .div(bn(ethUsdRate))
+
+        const setValueEthContract = await tradeAccounting.getSetHoldingsValueInWei()
+
+        assertBNEqual(setValueEth, setValueEthContract)
       })
     })
   },

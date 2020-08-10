@@ -6,6 +6,7 @@ const ETH_USD = new BN(200)
 const ETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 const collatDivisor = new BN(8)
 const DEC_18 = new BN(web3.utils.toWei('1'))
+const DEC_6 = new BN('1000000')
 const toNumber = (val) => Number(val.toString())
 const bn = val => new BN(val)
 const FIVE_HOURS = 60 * 60 * 5
@@ -38,6 +39,7 @@ module.exports = {
   ETH_ADDRESS,
   collatDivisor,
   DEC_18,
+  DEC_6,
   toNumber,
   bn,
   increaseTime,
