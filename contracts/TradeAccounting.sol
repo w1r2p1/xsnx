@@ -87,8 +87,6 @@ contract TradeAccounting is Ownable {
 
     ICurveFi private curveFi;
     ISynthetix private synthetix;
-    IRewardEscrow private rewardEscrow;
-    IExchangeRates private exchangeRates;
     ISynthetixState private synthetixState;
     IAddressResolver private addressResolver;
     IKyberNetworkProxy private kyberNetworkProxy;
@@ -548,6 +546,10 @@ contract TradeAccounting is Ownable {
             baseSetNaturalUnit
         );
 
+        address currentSetAsset = getAssetCurrentlyActiveInSet();
+        uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals());
+        componentRequired = componentRequired.mul(DEC_18).div(decimals);
+
         bytes32 activeAssetSynthSymbol = getActiveAssetSynthSymbol();
 
         uint256 synthUsd = getSynthPrice(activeAssetSynthSymbol);
@@ -600,13 +602,13 @@ contract TradeAccounting is Ownable {
         return
             getSetBalanceCollateral().mul(getBaseSetComponentUnits()).div(
                 getBaseSetNaturalUnit()
-            ); 
+            );
     }
 
     function getSetBalanceCollateral() internal view returns (uint256) {
-        uint256 unitShares = getSetUnitShares(); 
-        uint256 naturalUnit = getSetNaturalUnit(); 
-        return getContractSetBalance().mul(unitShares).div(naturalUnit); 
+        uint256 unitShares = getSetUnitShares();
+        uint256 naturalUnit = getSetNaturalUnit();
+        return getContractSetBalance().mul(unitShares).div(naturalUnit);
     }
 
     function getSetUnitShares() internal view returns (uint256) {
@@ -644,7 +646,9 @@ contract TradeAccounting is Ownable {
     }
 
     function getSnxBalanceEscrowed() internal view returns (uint256) {
-        return rewardEscrow.balanceOf(xSNXInstance);
+        return
+            IRewardEscrow(addressResolver.getAddress(rewardEscrowName))
+                .balanceOf(xSNXInstance);
     }
 
     function getContractEscrowedSnxValue() internal view returns (uint256) {
@@ -656,14 +660,20 @@ contract TradeAccounting is Ownable {
     }
 
     function getSnxPrice() internal view returns (uint256) {
-        (uint256 rate, uint256 time) = exchangeRates.rateAndUpdatedTime(snx);
+        (uint256 rate, uint256 time) = IExchangeRates(
+            addressResolver.getAddress(exchangeRatesName)
+        )
+            .rateAndUpdatedTime(snx);
         require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
         return rate;
     }
 
     function getSynthPrice(bytes32 synth) internal view returns (uint256) {
-        (uint256 rate, uint256 time) = exchangeRates.rateAndUpdatedTime(synth);
-        if(synth != susd){
+        (uint256 rate, uint256 time) = IExchangeRates(
+            addressResolver.getAddress(exchangeRatesName)
+        )
+            .rateAndUpdatedTime(synth);
+        if (synth != susd) {
             require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
         }
         return rate;
@@ -983,20 +993,6 @@ contract TradeAccounting is Ownable {
     function setSynthetixAddress() public {
         address synthetixAddress = addressResolver.getAddress(synthetixName);
         synthetix = ISynthetix(synthetixAddress);
-    }
-
-    function setExchangeRatesAddress() public {
-        address exchangeRatesAddress = addressResolver.getAddress(
-            exchangeRatesName
-        );
-        exchangeRates = IExchangeRates(exchangeRatesAddress);
-    }
-
-    function setRewardEscrowAddress() public {
-        address rewardEscrowAddress = addressResolver.getAddress(
-            rewardEscrowName
-        );
-        rewardEscrow = IRewardEscrow(rewardEscrowAddress);
     }
 
     function setInstanceAddress(address _xSNXInstance) public onlyOwner {

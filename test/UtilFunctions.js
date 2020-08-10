@@ -60,16 +60,6 @@ contract(
         await tradeAccounting.setInstanceAddress(xsnx.address)
         assert(true)
       })
-
-      it('should be able to set the Exchange Rates address on TradeAccounting', async () => {
-        await tradeAccounting.setExchangeRatesAddress()
-        assert(true)
-      })
-
-      it('should be able to set the Reward escrow address on TradeAccounting', async () => {
-        await tradeAccounting.setRewardEscrowAddress()
-        assert(true)
-      })
     })
 
     describe('ERC20 approvals', async () => {
