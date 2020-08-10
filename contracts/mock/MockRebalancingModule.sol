@@ -39,14 +39,13 @@ contract MockRebalancingModule {
         IERC20(_rebalancingSetAddress).transferFrom(msg.sender, address(this), _rebalancingSetQuantity);
         
         if(activeAssetIndex == 0){
-        // this redemption calc is a rough approx of the ratio of weth/Set unit implicit 
-        // in hard-coded data in MockSetToken and MockCollateralSet
-        // essentially 1 WETH gets you a bit less than 1 Set
-            uint wethToSend = _rebalancingSetQuantity.mul(853e15).div(1e18); // underlying asset
+            uint wethToSend = _rebalancingSetQuantity.mul(102).div(100);
+            // uint wethToSend = _rebalancingSetQuantity.mul(853e15).div(1e18);
             IERC20(wethAddress).transfer(msg.sender, wethToSend);
         } else {
             // account for eth/usd exch rate and usdc 6 decimal pts
-            uint usdcToSend = _rebalancingSetQuantity.mul(853e15).div(1e18).mul(200).mul(1e6).div(1e18);
+            uint usdcToSend = _rebalancingSetQuantity.mul(110).mul(1e6).div(1e18);
+            // uint usdcToSend = _rebalancingSetQuantity.mul(853e15).div(1e18).mul(200).mul(1e6).div(1e18);
             IERC20(usdcAddress).transfer(msg.sender, usdcToSend);
         }
     }
@@ -57,11 +56,10 @@ contract MockRebalancingModule {
         bool _keepChangeInVault
     ) public {
         if(activeAssetIndex == 0){
-            uint wethToReceive = _rebalancingSetQuantity.mul(853e15).div(1e18);
+            uint wethToReceive = IERC20(wethAddress).balanceOf(msg.sender);
             IERC20(wethAddress).transferFrom(msg.sender, address(this), wethToReceive);
         } else {
-            // account for eth/usd exch rate and usdc 6 decimal pts
-            uint usdcToReceive = _rebalancingSetQuantity.mul(853e15).div(1e18).mul(200).mul(1e6).div(1e18); 
+            uint usdcToReceive = IERC20(usdcAddress).balanceOf(msg.sender);
             IERC20(usdcAddress).transferFrom(msg.sender, address(this), usdcToReceive);
         }
         IERC20(setToken).transfer(msg.sender, _rebalancingSetQuantity);

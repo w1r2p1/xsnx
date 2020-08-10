@@ -15,10 +15,12 @@ contract MockCollateralSet is MockERC20 {
         units = new uint[](1);
         if(activeAssetIndex == 0){
         // weth
-            units[0] = 1577152;
+            units[0] = 4194304;
+            // units[0] = 1577152;
         } else {
         // usdc
-            units[0] = 707;
+            units[0] = 307;
+            // units[0] = 707;
         }
     }
     function naturalUnit() public view returns(uint){

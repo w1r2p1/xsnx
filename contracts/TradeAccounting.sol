@@ -1,6 +1,7 @@
 pragma solidity 0.5.15;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
@@ -10,7 +11,6 @@ import "synthetix/contracts/interfaces/IExchangeRates.sol";
 import "synthetix/contracts/interfaces/ISynthetixState.sol";
 import "synthetix/contracts/interfaces/IAddressResolver.sol";
 
-import "./Whitelist.sol";
 import "./interface/IxSNXCore.sol";
 
 import "./interface/ICurveFi.sol";
@@ -57,7 +57,7 @@ import "./interface/ISetAssetBaseCollateral.sol";
 	Allocation         |  NAV   | % NAV
 	--------------------------------------
 	800 SNX @ $1/token | $800   | 99.37%
-	100 sUSD Debt	   | ($105)	| (12.42%)
+	100 sUSD Debt	   | ($100)	| (12.42%)
 	75 USD equiv Set   | $75    | 9.31%
 	30 USD equiv ETH   | $30    | 3.72%
 	--------------------------------------
@@ -69,43 +69,38 @@ import "./interface/ISetAssetBaseCollateral.sol";
 	Hedge/debt ratio   | 105%
   */
 
-contract TradeAccounting is Whitelist {
+contract TradeAccounting is Ownable {
     using SafeMath for uint256;
 
-    uint256 private constant DEC_6 = 1e6;
+    uint256 private constant TEN = 10;
     uint256 private constant DEC_18 = 1e18;
     uint256 private constant PERCENT = 100;
     uint256 private constant ETH_TARGET = 4; // targets 1/4th of hedge portfolio
     uint256 private constant SLIPPAGE_RATE = 99;
-    uint256 private constant MIN_CURVE_RETURN = 96;
     uint256 private constant MAX_UINT = 2**256 - 1;
     uint256 private constant RATE_STALE_TIME = 3600; // 1 hour
     uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
-    uint256 private constant CURVE_UPDATE_WAITING_PERIOD = 2 days;
 
     int128 usdcIndex;
     int128 susdIndex;
 
     ICurveFi private curveFi;
     ISynthetix private synthetix;
+    IRewardEscrow private rewardEscrow;
     IExchangeRates private exchangeRates;
     ISynthetixState private synthetixState;
     IAddressResolver private addressResolver;
     IKyberNetworkProxy private kyberNetworkProxy;
 
-    address private caller;
+    address private xSNXInstance;
     address private addressValidator;
 
-    address
-        private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address private snxAddress;
     address private setAddress;
     address private susdAddress;
     address private usdcAddress;
 
-    bool private isCurveSet;
-    address nextCurveAddress;
+    address private nextCurveAddress;
 
     bytes32 constant snx = "SNX";
     bytes32 constant susd = "sUSD";
@@ -119,7 +114,6 @@ contract TradeAccounting is Whitelist {
         address _setAddress,
         address _kyberProxyAddress,
         address _addressResolver,
-        address _snxAddress,
         address _susdAddress,
         address _usdcAddress,
         address _addressValidator,
@@ -129,7 +123,6 @@ contract TradeAccounting is Whitelist {
         setAddress = _setAddress;
         kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
         addressResolver = IAddressResolver(_addressResolver);
-        snxAddress = _snxAddress;
         susdAddress = _susdAddress;
         usdcAddress = _usdcAddress;
         addressValidator = _addressValidator;
@@ -137,8 +130,8 @@ contract TradeAccounting is Whitelist {
         setComponentAddresses = _setComponentAddresses;
     }
 
-    modifier onlyCaller {
-        require(msg.sender == caller, "Only xSNX contract can call");
+    modifier onlyXSNX {
+        require(msg.sender == xSNXInstance, "Only xSNX contract can call");
         _;
     }
 
@@ -149,14 +142,14 @@ contract TradeAccounting is Whitelist {
     function swapEtherToToken(address toToken, uint256 minConversionRate)
         public
         payable
-        onlyCaller
+        onlyXSNX
     {
         kyberNetworkProxy.swapEtherToToken.value(msg.value)(
             ERC20(toToken),
             minConversionRate
         );
         IERC20(toToken).transfer(
-            caller,
+            xSNXInstance,
             IERC20(toToken).balanceOf(address(this))
         );
     }
@@ -167,7 +160,7 @@ contract TradeAccounting is Whitelist {
         address toToken,
         uint256 minKyberRate,
         uint256 minCurveReturn
-    ) public onlyCaller {
+    ) public onlyXSNX {
         if (fromToken == susdAddress) {
             _exchangeUnderlying(susdIndex, usdcIndex, amount, minCurveReturn);
 
@@ -181,18 +174,13 @@ contract TradeAccounting is Whitelist {
             }
 
             uint256 usdcBal = getUsdcBalance();
-            _exchangeUnderlying(
-                usdcIndex,
-                susdIndex,
-                usdcBal,
-                minCurveReturn
-            );
+            _exchangeUnderlying(usdcIndex, susdIndex, usdcBal, minCurveReturn);
         } else {
             _swapTokenToToken(fromToken, amount, toToken, minKyberRate);
         }
 
         IERC20(toToken).transfer(
-            caller,
+            xSNXInstance,
             IERC20(toToken).balanceOf(address(this))
         );
     }
@@ -216,7 +204,7 @@ contract TradeAccounting is Whitelist {
         uint256 amount,
         uint256 minKyberRate,
         uint256 minCurveReturn
-    ) public onlyCaller {
+    ) public onlyXSNX {
         if (fromToken == susdAddress) {
             _exchangeUnderlying(susdIndex, usdcIndex, amount, minCurveReturn);
 
@@ -227,7 +215,8 @@ contract TradeAccounting is Whitelist {
         }
 
         uint256 ethBal = address(this).balance;
-        msg.sender.transfer(ethBal);
+        (bool success, ) = msg.sender.call.value(ethBal)("");
+        require(success, "Transfer failed");
     }
 
     function _swapTokenToEther(
@@ -265,8 +254,9 @@ contract TradeAccounting is Whitelist {
     /* ========================================================================================= */
 
     function getEthBalance() public view returns (uint256) {
-        uint256 withdrawableFees = IxSNXCore(caller).withdrawableEthFees();
-        return address(caller).balance.sub(withdrawableFees);
+        uint256 withdrawableFees = IxSNXCore(xSNXInstance)
+            .withdrawableEthFees();
+        return address(xSNXInstance).balance.sub(withdrawableFees);
     }
 
     // eth terms
@@ -389,7 +379,9 @@ contract TradeAccounting is Whitelist {
 
     function getInitialSupply() internal view returns (uint256) {
         return
-            IERC20(snxAddress).balanceOf(caller).mul(INITIAL_SUPPLY_MULTIPLIER);
+            IERC20(address(synthetix)).balanceOf(xSNXInstance).mul(
+                INITIAL_SUPPLY_MULTIPLIER
+            );
     }
 
     function calculateTokensToMintWithEth(
@@ -415,7 +407,7 @@ contract TradeAccounting is Whitelist {
 
     function calculateTokensToMintWithSnx(
         uint256 snxBalanceBefore,
-        uint256 snxBalanceAdded,
+        uint256 snxAddedToBalance,
         uint256 totalSupply
     ) public view returns (uint256) {
         if (totalSupply == 0) {
@@ -424,7 +416,7 @@ contract TradeAccounting is Whitelist {
 
         uint256 weiPerOneSnx = getWeiPerOneSnxOnMint();
         // need to derive snx contribution in eth terms for NAV calc
-        uint256 proxyEthContribution = weiPerOneSnx.mul(snxBalanceAdded).div(
+        uint256 proxyEthContribution = weiPerOneSnx.mul(snxAddedToBalance).div(
             DEC_18
         );
         uint256 nonSnxAssetValue = calculateNonSnxAssetValue();
@@ -476,7 +468,7 @@ contract TradeAccounting is Whitelist {
     /* ========================================================================================= */
 
     function getActiveSetAssetBalance() public view returns (uint256) {
-        return IERC20(getAssetCurrentlyActiveInSet()).balanceOf(caller);
+        return IERC20(getAssetCurrentlyActiveInSet()).balanceOf(xSNXInstance);
     }
 
     function calculateSetQuantity(uint256 componentQuantity)
@@ -521,7 +513,7 @@ contract TradeAccounting is Whitelist {
         uint256 synthUsd = getSynthPrice(activeAssetSynthSymbol);
 
         // expectedSetAssetRate = amount of current set asset needed to redeem for 1 sUSD
-        uint expectedSetAssetRate = DEC_18.mul(DEC_18).div(synthUsd);
+        uint256 expectedSetAssetRate = DEC_18.mul(DEC_18).div(synthUsd);
 
         uint256 setAssetCollateralToSell = expectedSetAssetRate
             .mul(totalSusdToBurn)
@@ -529,7 +521,6 @@ contract TradeAccounting is Whitelist {
             .mul(103) // err on the high side
             .div(PERCENT);
 
-        uint256 TEN = 10;
         uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals());
         setAssetCollateralToSell = setAssetCollateralToSell.mul(decimals).div(
             DEC_18
@@ -571,9 +562,13 @@ contract TradeAccounting is Whitelist {
     {
         uint256 setCollateralTokens = getSetCollateralTokens();
         bytes32 synthSymbol = getActiveAssetSynthSymbol();
+        address currentSetAsset = getAssetCurrentlyActiveInSet();
 
         uint256 synthUsd = getSynthPrice(synthSymbol);
         uint256 ethUsd = getSynthPrice(seth);
+
+        uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals());
+        setCollateralTokens = setCollateralTokens.mul(DEC_18).div(decimals);
         setValInWei = setCollateralTokens.mul(synthUsd).div(ethUsd);
     }
 
@@ -604,14 +599,14 @@ contract TradeAccounting is Whitelist {
     function getSetCollateralTokens() internal view returns (uint256) {
         return
             getSetBalanceCollateral().mul(getBaseSetComponentUnits()).div(
-                getSetNaturalUnit()
-            );
+                getBaseSetNaturalUnit()
+            ); 
     }
 
     function getSetBalanceCollateral() internal view returns (uint256) {
-        uint256 unitShares = getSetUnitShares();
-        uint256 naturalUnit = getSetNaturalUnit();
-        return getContractSetBalance().mul(unitShares).div(naturalUnit);
+        uint256 unitShares = getSetUnitShares(); 
+        uint256 naturalUnit = getSetNaturalUnit(); 
+        return getContractSetBalance().mul(unitShares).div(naturalUnit); 
     }
 
     function getSetUnitShares() internal view returns (uint256) {
@@ -623,7 +618,7 @@ contract TradeAccounting is Whitelist {
     }
 
     function getContractSetBalance() internal view returns (uint256) {
-        return IERC20(setAddress).balanceOf(caller);
+        return IERC20(setAddress).balanceOf(xSNXInstance);
     }
 
     function getBaseSetComponentUnits() internal view returns (uint256) {
@@ -635,8 +630,8 @@ contract TradeAccounting is Whitelist {
     /* ========================================================================================= */
 
     function getSusdBalance() public view returns (uint256) {
-        uint256 susdBal = IERC20(susdAddress).balanceOf(caller);
-        uint256 susdFees = IxSNXCore(caller).withdrawableSusdFees();
+        uint256 susdBal = IERC20(susdAddress).balanceOf(xSNXInstance);
+        uint256 susdFees = IxSNXCore(xSNXInstance).withdrawableSusdFees();
         return susdBal.sub(susdFees);
     }
 
@@ -645,13 +640,11 @@ contract TradeAccounting is Whitelist {
     }
 
     function getSnxBalanceOwned() internal view returns (uint256) {
-        return IERC20(snxAddress).balanceOf(caller);
+        return IERC20(address(synthetix)).balanceOf(xSNXInstance);
     }
 
     function getSnxBalanceEscrowed() internal view returns (uint256) {
-        return
-            IRewardEscrow(addressResolver.getAddress(rewardEscrowName))
-                .balanceOf(caller);
+        return rewardEscrow.balanceOf(xSNXInstance);
     }
 
     function getContractEscrowedSnxValue() internal view returns (uint256) {
@@ -670,7 +663,9 @@ contract TradeAccounting is Whitelist {
 
     function getSynthPrice(bytes32 synth) internal view returns (uint256) {
         (uint256 rate, uint256 time) = exchangeRates.rateAndUpdatedTime(synth);
-        require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        if(synth != susd){
+            require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        }
         return rate;
     }
 
@@ -684,11 +679,7 @@ contract TradeAccounting is Whitelist {
     }
 
     function getContractDebtValue() internal view returns (uint256) {
-        return
-            ISynthetix(addressResolver.getAddress(synthetixName)).debtBalanceOf(
-                caller,
-                susd
-            );
+        return synthetix.debtBalanceOf(xSNXInstance, susd);
     }
 
     // returns inverse of target C-RATIO
@@ -709,7 +700,7 @@ contract TradeAccounting is Whitelist {
         uint256 snxValueHeld,
         uint256 contractDebtValue,
         uint256 issuanceRatio
-    ) public pure returns (uint256) {
+    ) internal pure returns (uint256) {
         uint256 subtractor = issuanceRatio.mul(snxValueHeld).div(DEC_18);
 
         if (subtractor > contractDebtValue) return 0;
@@ -849,7 +840,11 @@ contract TradeAccounting is Whitelist {
         view
         returns (uint256 hedgeAssetsValueInUsd)
     {
+        address currentSetAsset = getAssetCurrentlyActiveInSet();
+        uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals());
         uint256 setCollateralTokens = getSetCollateralTokens();
+        setCollateralTokens = setCollateralTokens.mul(DEC_18).div(decimals);
+
         bytes32 activeAssetSynthSymbol = getActiveAssetSynthSymbol();
 
         uint256 synthUsd = getSynthPrice(activeAssetSynthSymbol);
@@ -978,27 +973,43 @@ contract TradeAccounting is Whitelist {
     bytes32 constant exchangeRatesName = "ExchangeRates";
     bytes32 constant synthetixName = "Synthetix";
 
-    function setSynthetixStateAddress() public onlyOwner {
+    function setSynthetixStateAddress() public {
         address synthetixStateAddress = addressResolver.getAddress(
             synthetixStateName
         );
         synthetixState = ISynthetixState(synthetixStateAddress);
     }
 
-    function setCallerAddress(address _caller) public onlyOwner {
-        if(caller == address(0)){
-            caller = _caller;
-        }
+    function setSynthetixAddress() public {
+        address synthetixAddress = addressResolver.getAddress(synthetixName);
+        synthetix = ISynthetix(synthetixAddress);
     }
 
-    function setExchangeRatesAddress() public onlyOwner {
+    function setExchangeRatesAddress() public {
         address exchangeRatesAddress = addressResolver.getAddress(
             exchangeRatesName
         );
         exchangeRates = IExchangeRates(exchangeRatesAddress);
     }
 
-    function setCurve(address curvePoolAddress, int128 _usdcIndex, int128 _susdIndex) public onlyOwner {
+    function setRewardEscrowAddress() public {
+        address rewardEscrowAddress = addressResolver.getAddress(
+            rewardEscrowName
+        );
+        rewardEscrow = IRewardEscrow(rewardEscrowAddress);
+    }
+
+    function setInstanceAddress(address _xSNXInstance) public onlyOwner {
+        if (xSNXInstance == address(0)) {
+            xSNXInstance = _xSNXInstance;
+        }
+    }
+
+    function setCurve(
+        address curvePoolAddress,
+        int128 _usdcIndex,
+        int128 _susdIndex
+    ) public onlyOwner {
         if (address(curveFi) == address(0)) {
             // if initial set on deployment, immediately activate Curve address
             curveFi = ICurveFi(curvePoolAddress);
