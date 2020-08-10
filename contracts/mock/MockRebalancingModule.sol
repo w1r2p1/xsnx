@@ -40,12 +40,9 @@ contract MockRebalancingModule {
         
         if(activeAssetIndex == 0){
             uint wethToSend = _rebalancingSetQuantity.mul(102).div(100);
-            // uint wethToSend = _rebalancingSetQuantity.mul(853e15).div(1e18);
             IERC20(wethAddress).transfer(msg.sender, wethToSend);
         } else {
-            // account for eth/usd exch rate and usdc 6 decimal pts
             uint usdcToSend = _rebalancingSetQuantity.mul(110).mul(1e6).div(1e18);
-            // uint usdcToSend = _rebalancingSetQuantity.mul(853e15).div(1e18).mul(200).mul(1e6).div(1e18);
             IERC20(usdcAddress).transfer(msg.sender, usdcToSend);
         }
     }
