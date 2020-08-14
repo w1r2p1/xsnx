@@ -22,6 +22,7 @@ const MockCurveFi = artifacts.require('MockCurveFi')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockSynthetixState = artifacts.require('MockSynthetixState')
+const MockSystemSettings = artifacts.require('MockSystemSettings')
 
 // ["kovan, mainnet"]
 const DEPLOY_TO_NETWORK = 'kovan'
@@ -32,231 +33,245 @@ module.exports = async function (deployer, network, accounts) {
       return deployer.deploy(MockExchangeRates).then((exchangeRates) => {
         return deployer.deploy(MockRewardEscrow).then((rewardEscrow) => {
           return deployer.deploy(MockSynthetixState).then((synthetixState) => {
-            return deployer.deploy(MockSynthetix).then((synthetix) => {
-              synthetix.setRewardEscrowAddress(rewardEscrow.address)
-              return deployer
-                .deploy(
-                  MockAddressResolver,
-                  exchangeRates.address,
-                  feePool.address,
-                  rewardEscrow.address,
-                  synthetixState.address,
-                  synthetix.address,
-                )
-                .then(async (addressResolver) => {
-                  return deployer.deploy(MockWETH).then((weth) => {
-                    return deployer.deploy(MockUSDC).then((usdc) => {
-                      return deployer
-                        .deploy(MockCollateralSet, [weth.address, usdc.address])
-                        .then((collateralSetToken) => {
+            return deployer
+              .deploy(MockSystemSettings)
+              .then((systemSettings) => {
+                return deployer.deploy(MockSynthetix).then((synthetix) => {
+                  synthetix.setRewardEscrowAddress(rewardEscrow.address)
+                  return deployer
+                    .deploy(
+                      MockAddressResolver,
+                      exchangeRates.address,
+                      feePool.address,
+                      rewardEscrow.address,
+                      synthetixState.address,
+                      synthetix.address,
+                      systemSettings.address
+                    )
+                    .then(async (addressResolver) => {
+                      return deployer.deploy(MockWETH).then((weth) => {
+                        return deployer.deploy(MockUSDC).then((usdc) => {
                           return deployer
-                            .deploy(MockSUSD)
-                            .then(async (susd) => {
-                              await synthetix.setSusdAddress(susd.address)
-                              console.log('susd address set on mock synthetix')
-
+                            .deploy(MockCollateralSet, [
+                              weth.address,
+                              usdc.address,
+                            ])
+                            .then((collateralSetToken) => {
                               return deployer
-                                .deploy(
-                                  MockSetToken,
-                                  [weth.address, usdc.address],
-                                  collateralSetToken.address,
-                                )
-                                .then((setToken) => {
-                                  const ETH_ADDRESS =
-                                    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+                                .deploy(MockSUSD)
+                                .then(async (susd) => {
+                                  await synthetix.setSusdAddress(susd.address)
+                                  console.log(
+                                    'susd address set on mock synthetix',
+                                  )
+
                                   return deployer
                                     .deploy(
-                                      MockKyberProxy,
-                                      ETH_ADDRESS,
-                                      synthetix.address,
-                                      susd.address,
-                                      weth.address,
-                                      usdc.address,
+                                      MockSetToken,
+                                      [weth.address, usdc.address],
+                                      collateralSetToken.address,
                                     )
-                                    .then((kyberProxy) => {
+                                    .then((setToken) => {
+                                      const ETH_ADDRESS =
+                                        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
                                       return deployer
                                         .deploy(
-                                          MockRebalancingModule,
-                                          setToken.address,
+                                          MockKyberProxy,
+                                          ETH_ADDRESS,
+                                          synthetix.address,
+                                          susd.address,
+                                          weth.address,
+                                          usdc.address,
                                         )
-                                        .then(async (rebalancingModule) => {
-                                          const synthSymbols = [
-                                            'sETH',
-                                            'sUSD',
-                                          ].map((symbol) =>
-                                            web3.utils.fromAscii(symbol),
-                                          )
-                                          const setComponentAddresses = [
-                                            weth.address,
-                                            usdc.address,
-                                          ]
-                                          await rebalancingModule.setWethAddress(
-                                            weth.address,
-                                          )
-                                          await rebalancingModule.setUsdcAddress(
-                                            usdc.address,
-                                          )
+                                        .then((kyberProxy) => {
                                           return deployer
-                                            .deploy(MockCurveFi)
-                                            .then(async (curveFi) => {
+                                            .deploy(
+                                              MockRebalancingModule,
+                                              setToken.address,
+                                            )
+                                            .then(async (rebalancingModule) => {
+                                              const synthSymbols = [
+                                                'sETH',
+                                                'sUSD',
+                                              ].map((symbol) =>
+                                                web3.utils.fromAscii(symbol),
+                                              )
+                                              const setComponentAddresses = [
+                                                weth.address,
+                                                usdc.address,
+                                              ]
+                                              await rebalancingModule.setWethAddress(
+                                                weth.address,
+                                              )
+                                              await rebalancingModule.setUsdcAddress(
+                                                usdc.address,
+                                              )
                                               return deployer
-                                                .deploy(
-                                                  ExtTradeAccounting,
-                                                  setToken.address,
-                                                  kyberProxy.address,
-                                                  addressResolver.address,
-                                                  susd.address,
-                                                  usdc.address,
-                                                  accounts[1],
-                                                  synthSymbols,
-                                                  setComponentAddresses,
-                                                )
-                                                .then(
-                                                  async (tradeAccounting) => {
-                                                    return deployer
-                                                      .deploy(
-                                                        ExtXCore,
-                                                        tradeAccounting.address,
-                                                        setToken.address,
-                                                        synthetix.address,
-                                                        susd.address,
-                                                        susd.address, // used as placeholder for setTransferProxy which isn't used in testing
-                                                        addressResolver.address,
-                                                        rebalancingModule.address,
-                                                      )
-                                                      .then(async (xsnx) => {
-                                                        console.log(
-                                                          'xsnx deployed',
-                                                        )
-                                                        await xsnx.approveMock(
-                                                          rebalancingModule.address,
-                                                          weth.address,
-                                                        )
-                                                        console.log(
-                                                          'xsnx: weth approved on rebalance module *mock purposes only*',
-                                                        )
-                                                        await xsnx.approveMock(
-                                                          rebalancingModule.address,
-                                                          usdc.address,
-                                                        )
-                                                        console.log(
-                                                          'xsnx: usdc approved on rebalance module *mock purposes only*',
-                                                        )
-                                                        await xsnx.approveMock(
-                                                          rebalancingModule.address,
-                                                          setToken.address,
-                                                        )
-                                                        console.log(
-                                                          'xsnx: set token approved on rebalance module *mock purposes only*',
-                                                        )
-                                                        await xsnx.approveMock(
-                                                          synthetix.address,
-                                                          susd.address,
-                                                        )
-                                                        console.log(
-                                                          'xsnx: susd approved on synthetix *mock purposes only*',
-                                                        )
+                                                .deploy(MockCurveFi)
+                                                .then(async (curveFi) => {
+                                                  return deployer
+                                                    .deploy(
+                                                      ExtTradeAccounting,
+                                                      setToken.address,
+                                                      kyberProxy.address,
+                                                      addressResolver.address,
+                                                      susd.address,
+                                                      usdc.address,
+                                                      accounts[1],
+                                                      synthSymbols,
+                                                      setComponentAddresses,
+                                                    )
+                                                    .then(
+                                                      async (
+                                                        tradeAccounting,
+                                                      ) => {
+                                                        return deployer
+                                                          .deploy(
+                                                            ExtXCore,
+                                                            tradeAccounting.address,
+                                                            setToken.address,
+                                                            synthetix.address,
+                                                            susd.address,
+                                                            susd.address, // used as placeholder for setTransferProxy which isn't used in testing
+                                                            addressResolver.address,
+                                                            rebalancingModule.address,
+                                                          )
+                                                          .then(
+                                                            async (xsnx) => {
+                                                              console.log(
+                                                                'xsnx deployed',
+                                                              )
+                                                              await xsnx.approveMock(
+                                                                rebalancingModule.address,
+                                                                weth.address,
+                                                              )
+                                                              console.log(
+                                                                'xsnx: weth approved on rebalance module *mock purposes only*',
+                                                              )
+                                                              await xsnx.approveMock(
+                                                                rebalancingModule.address,
+                                                                usdc.address,
+                                                              )
+                                                              console.log(
+                                                                'xsnx: usdc approved on rebalance module *mock purposes only*',
+                                                              )
+                                                              await xsnx.approveMock(
+                                                                rebalancingModule.address,
+                                                                setToken.address,
+                                                              )
+                                                              console.log(
+                                                                'xsnx: set token approved on rebalance module *mock purposes only*',
+                                                              )
+                                                              await xsnx.approveMock(
+                                                                synthetix.address,
+                                                                susd.address,
+                                                              )
+                                                              console.log(
+                                                                'xsnx: susd approved on synthetix *mock purposes only*',
+                                                              )
 
-                                                        // only testing
-                                                        await feePool.setSusdAddress(
-                                                          susd.address,
-                                                        )
+                                                              // only testing
+                                                              await feePool.setSusdAddress(
+                                                                susd.address,
+                                                              )
 
-                                                        await xsnx.setFeeDivisors(
-                                                          '400',
-                                                          '400',
-                                                          '40',
-                                                        )
-                                                        console.log(
-                                                          'xsnx: fee divisors set',
-                                                        )
+                                                              await xsnx.setFeeDivisors(
+                                                                '400',
+                                                                '400',
+                                                                '40',
+                                                              )
+                                                              console.log(
+                                                                'xsnx: fee divisors set',
+                                                              )
 
-                                                        await xsnx.setSynthetixAddress()
-                                                        console.log(
-                                                          'xsnx: synthetix set',
-                                                        )
+                                                              await xsnx.setSynthetixAddress()
+                                                              console.log(
+                                                                'xsnx: synthetix set',
+                                                              )
 
-                                                        await tradeAccounting.setInstanceAddress(
-                                                          xsnx.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: caller address set',
-                                                        )
+                                                              await tradeAccounting.setInstanceAddress(
+                                                                xsnx.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: caller address set',
+                                                              )
 
-                                                        await tradeAccounting.setSynthetixAddress()
-                                                        console.log(
-                                                          'ta: synthetix set',
-                                                        )
-                                                        await tradeAccounting.setSynthetixStateAddress()
-                                                        console.log(
-                                                          'ta: synth state set',
-                                                        )
-                       
-                                                        await tradeAccounting.approveKyber(
-                                                          synthetix.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: approve kyber: snx',
-                                                        )
-                                                        await tradeAccounting.approveKyber(
-                                                          susd.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: approve kyber: susd',
-                                                        )
-                                                        await tradeAccounting.approveKyber(
-                                                          weth.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: approve kyber: set asset 1',
-                                                        )
-                                                        await tradeAccounting.approveKyber(
-                                                          usdc.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: approve kyber: set asset 2',
-                                                        )
-                                                        const USDC_CURVE_INDEX = 1
-                                                        const SUSD_CURVE_INDEX = 3
-                                                        await tradeAccounting.setCurve(
-                                                          curveFi.address,
-                                                          USDC_CURVE_INDEX,
-                                                          SUSD_CURVE_INDEX,
-                                                        )
-                                                        console.log(
-                                                          'ta: curve set',
-                                                        )
-                                                        await tradeAccounting.approveCurve(
-                                                          susd.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: approve curve: susd',
-                                                        )
-                                                        await tradeAccounting.approveCurve(
-                                                          usdc.address,
-                                                        )
-                                                        console.log(
-                                                          'ta: approve curve: usdc',
-                                                        )
-                                                        await curveFi.setSusdAddress(
-                                                          susd.address,
-                                                        )
-                                                        await curveFi.setUsdcAddress(
-                                                          usdc.address,
-                                                        )
-                                                      })
-                                                  },
-                                                )
+                                                              await tradeAccounting.setSynthetixAddress()
+                                                              console.log(
+                                                                'ta: synthetix set',
+                                                              )
+                                                              await tradeAccounting.setSynthetixStateAddress()
+                                                              console.log(
+                                                                'ta: synth state set',
+                                                              )
+
+                                                              await tradeAccounting.approveKyber(
+                                                                synthetix.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: approve kyber: snx',
+                                                              )
+                                                              await tradeAccounting.approveKyber(
+                                                                susd.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: approve kyber: susd',
+                                                              )
+                                                              await tradeAccounting.approveKyber(
+                                                                weth.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: approve kyber: set asset 1',
+                                                              )
+                                                              await tradeAccounting.approveKyber(
+                                                                usdc.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: approve kyber: set asset 2',
+                                                              )
+                                                              const USDC_CURVE_INDEX = 1
+                                                              const SUSD_CURVE_INDEX = 3
+                                                              await tradeAccounting.setCurve(
+                                                                curveFi.address,
+                                                                USDC_CURVE_INDEX,
+                                                                SUSD_CURVE_INDEX,
+                                                              )
+                                                              console.log(
+                                                                'ta: curve set',
+                                                              )
+                                                              await tradeAccounting.approveCurve(
+                                                                susd.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: approve curve: susd',
+                                                              )
+                                                              await tradeAccounting.approveCurve(
+                                                                usdc.address,
+                                                              )
+                                                              console.log(
+                                                                'ta: approve curve: usdc',
+                                                              )
+                                                              await curveFi.setSusdAddress(
+                                                                susd.address,
+                                                              )
+                                                              await curveFi.setUsdcAddress(
+                                                                usdc.address,
+                                                              )
+                                                            },
+                                                          )
+                                                      },
+                                                    )
+                                                })
                                             })
                                         })
                                     })
                                 })
                             })
                         })
+                      })
                     })
-                  })
                 })
-            })
+              })
           })
         })
       })
@@ -323,7 +338,7 @@ module.exports = async function (deployer, network, accounts) {
             await xsnx.approveSetTransferProxy(SET_ASSET_2)
             console.log('xsnx: set asset 2 => transfer proxy approve')
 
-            await xsnx.setFeeDivisors('400', '400', '40')
+            await xsnx.setFeeDivisors('500', '500', '100')
             console.log('xsnx: fee divisors set')
 
             await xsnx.setSynthetixAddress()
@@ -340,8 +355,8 @@ module.exports = async function (deployer, network, accounts) {
               CURVE_POOL,
               USDC_CURVE_INDEX,
               SUSD_CURVE_INDEX,
-            )
-            console.log('ta: curve set') // errored here
+            ) //done
+            console.log('ta: curve set')
 
             await tradeAccounting.approveKyber(SNX_ADDRESS)
             console.log('ta: approve kyber: snx')

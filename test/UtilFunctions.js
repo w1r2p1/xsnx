@@ -323,5 +323,19 @@ contract(
         )
       })
     })
+
+    describe('Issuance ratio toggle', async() => {
+      const targetRatio = 125000000000000000
+      it('should read issuance ratio from synthetix state', async() => {
+        const issuanceRatio = await tradeAccounting.extGetIssuanceRatio()
+        assert.equal(targetRatio, issuanceRatio)
+      })
+      
+      it('should read issuance ratio from system settings', async() => {
+        await tradeAccounting.toggleSystemSettingsRead()
+        const issuanceRatio = await tradeAccounting.extGetIssuanceRatio()
+        assert.equal(targetRatio, issuanceRatio)
+      })
+    })
   },
 )

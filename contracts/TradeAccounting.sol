@@ -12,6 +12,7 @@ import "synthetix/contracts/interfaces/ISynthetixState.sol";
 import "synthetix/contracts/interfaces/IAddressResolver.sol";
 
 import "./interface/IxSNXCore.sol";
+import "./interface/ISystemSettings.sol";
 
 import "./interface/ICurveFi.sol";
 import "./interface/ISetToken.sol";
@@ -107,6 +108,8 @@ contract TradeAccounting is Ownable {
     bytes32[2] synthSymbols;
 
     address[2] setComponentAddresses;
+
+    bool readSystemSettings;
 
     constructor(
         address _setAddress,
@@ -693,8 +696,11 @@ contract TradeAccounting is Ownable {
     }
 
     // returns inverse of target C-RATIO
-    function getIssuanceRatio() internal view returns (uint256) {
-        return synthetixState.issuanceRatio();
+    function getIssuanceRatio() internal view returns (uint256 issuanceRatio) {
+        issuanceRatio = readSystemSettings
+            ? ISystemSettings(addressResolver.getAddress(synthetixStateName))
+                .issuanceRatio()
+            : synthetixState.issuanceRatio();
     }
 
     // usd terms
@@ -982,6 +988,7 @@ contract TradeAccounting is Ownable {
     bytes32 constant synthetixStateName = "SynthetixState";
     bytes32 constant exchangeRatesName = "ExchangeRates";
     bytes32 constant synthetixName = "Synthetix";
+    bytes32 constant systemSettingsName = "SystemSettings";
 
     function setSynthetixStateAddress() public {
         address synthetixStateAddress = addressResolver.getAddress(
@@ -1036,6 +1043,10 @@ contract TradeAccounting is Ownable {
         require(msg.sender == addressValidator, "Incorrect caller");
         require(nextCurveAddress == _nextCurveAddress, "Addresses don't match");
         curveFi = ICurveFi(nextCurveAddress);
+    }
+
+    function toggleSystemSettingsRead() public onlyOwner {
+        readSystemSettings = !readSystemSettings;
     }
 
     function() external payable {}
