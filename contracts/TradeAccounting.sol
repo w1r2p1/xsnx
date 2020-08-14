@@ -698,7 +698,7 @@ contract TradeAccounting is Ownable {
     // returns inverse of target C-RATIO
     function getIssuanceRatio() internal view returns (uint256 issuanceRatio) {
         issuanceRatio = readSystemSettings
-            ? ISystemSettings(addressResolver.getAddress(synthetixStateName))
+            ? ISystemSettings(addressResolver.getAddress(systemSettingsName))
                 .issuanceRatio()
             : synthetixState.issuanceRatio();
     }
