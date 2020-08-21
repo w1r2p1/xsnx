@@ -389,13 +389,23 @@ contract TradeAccounting is Ownable {
         uint256 snxBalanceBefore,
         uint256 ethContributed,
         uint256 nonSnxAssetValue,
-        uint256 totalSupply
+        uint256 totalSupply,
+        bool allocateToEth
     ) public view returns (uint256) {
         if (totalSupply == 0) {
             return getInitialSupply();
         }
 
-        uint256 weiPerOneSnx = getWeiPerOneSnxOnMint();
+        uint256 weiPerOneSnx;
+        if(allocateToEth){
+            weiPerOneSnx = getWeiPerOneSnxOnMint();
+        } else {
+            uint256 snxBalanceAfter = getSnxBalance();
+            uint256 snxContributed = snxBalanceAfter.sub(snxBalanceBefore);
+            weiPerOneSnx = ethContributed.mul(DEC_18).div(snxContributed);
+        }
+
+
         uint256 pricePerToken = calculateIssueTokenPrice(
             weiPerOneSnx,
             snxBalanceBefore,
@@ -472,26 +482,24 @@ contract TradeAccounting is Ownable {
         return IERC20(getAssetCurrentlyActiveInSet()).balanceOf(xSNXInstance);
     }
 
-    function calculateSetQuantity(uint256 componentQuantity)
-        public
-        view
-        returns (uint256 rebalancingSetQuantity)
-    {
-        uint256 baseSetNaturalUnit = getBaseSetNaturalUnit();
-        uint256 baseSetComponentUnits = getBaseSetComponentUnits();
+    function calculateSetQuantity(
+        uint256 componentQuantity // 2.06e6
+    ) public view returns (uint256 rebalancingSetQuantity) {
+        uint256 baseSetNaturalUnit = getBaseSetNaturalUnit(); // 1000000000000
+        uint256 baseSetComponentUnits = getBaseSetComponentUnits(); // 307
         uint256 baseSetIssuable = componentQuantity.mul(baseSetNaturalUnit).div(
             baseSetComponentUnits
-        );
+        ); // 2.06e16 * 1000000000000 / 307 = 6.7e15
 
-        uint256 rebalancingSetNaturalUnit = getSetNaturalUnit();
-        uint256 unitShares = getSetUnitShares();
+        uint256 rebalancingSetNaturalUnit = getSetNaturalUnit(); // 1000000
+        uint256 unitShares = getSetUnitShares(); // 359702
         rebalancingSetQuantity = baseSetIssuable
             .mul(rebalancingSetNaturalUnit)
             .div(unitShares)
             .mul(99) // ensure sufficient balance in underlying asset
             .div(100)
             .div(rebalancingSetNaturalUnit)
-            .mul(rebalancingSetNaturalUnit);
+            .mul(rebalancingSetNaturalUnit); // 6.7e15 * 1000000 / 359702 = 1.86e16
     }
 
     function calculateSetIssuanceQuantity()
@@ -503,29 +511,27 @@ contract TradeAccounting is Ownable {
         rebalancingSetIssuable = calculateSetQuantity(componentQuantity);
     }
 
-    function calculateSetRedemptionQuantity(uint256 totalSusdToBurn)
-        public
-        view
-        returns (uint256 rebalancingSetRedeemable)
-    {
+    function calculateSetRedemptionQuantity(
+        uint256 totalSusdToBurn // 2e18
+    ) public view returns (uint256 rebalancingSetRedeemable) {
         address currentSetAsset = getAssetCurrentlyActiveInSet();
 
         bytes32 activeAssetSynthSymbol = getActiveAssetSynthSymbol();
-        uint256 synthUsd = getSynthPrice(activeAssetSynthSymbol);
+        uint256 synthUsd = getSynthPrice(activeAssetSynthSymbol); // 1e18
 
         // expectedSetAssetRate = amount of current set asset needed to redeem for 1 sUSD
-        uint256 expectedSetAssetRate = DEC_18.mul(DEC_18).div(synthUsd);
+        uint256 expectedSetAssetRate = DEC_18.mul(DEC_18).div(synthUsd); // 1e18 * 1e18 / 1e18 = 1e18
 
         uint256 setAssetCollateralToSell = expectedSetAssetRate
             .mul(totalSusdToBurn)
             .div(DEC_18)
             .mul(103) // err on the high side
-            .div(PERCENT);
+            .div(PERCENT); // 1e18 * 2e18 / 1e18 * 103 / 100 = 2.06e18
 
-        uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals());
+        uint256 decimals = (TEN**ERC20Detailed(currentSetAsset).decimals()); // 1e6
         setAssetCollateralToSell = setAssetCollateralToSell.mul(decimals).div(
             DEC_18
-        );
+        ); // 2.06e18 * 1e6 / 1e18 = 2.06e6
 
         rebalancingSetRedeemable = calculateSetQuantity(
             setAssetCollateralToSell

@@ -118,7 +118,8 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             snxBalanceBefore,
             ethContribution,
             nonSnxAssetValue,
-            totalSupply
+            totalSupply,
+            allocateToEth
         );
 
         emit Mint(msg.sender, block.timestamp, msg.value, mintAmount, true);
@@ -407,12 +408,12 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @params: refer to `rebalanceToHedge` for descriptions, however params here are discretionary
      */
     function unwindStakedPosition(
-        uint256 totalSusdToBurn,
+        uint256 totalSusdToBurn, // 2e18
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
-        uint256 snxToSell
+        uint256 snxToSell // 1e16
     ) external onlyOwnerOrManager {
-        address activeAsset = getAssetCurrentlyActiveInSet();
+        address activeAsset = getAssetCurrentlyActiveInSet(); // USDC
         _unwindStakedPosition(
             totalSusdToBurn,
             activeAsset,
