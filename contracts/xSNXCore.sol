@@ -118,7 +118,8 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
             snxBalanceBefore,
             ethContribution,
             nonSnxAssetValue,
-            totalSupply
+            totalSupply,
+            allocateToEth
         );
 
         emit Mint(msg.sender, block.timestamp, msg.value, mintAmount, true);

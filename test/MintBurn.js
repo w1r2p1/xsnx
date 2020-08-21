@@ -1,5 +1,12 @@
 const { BN } = require('@openzeppelin/test-helpers')
-const { assertBNEqual, BN_ZERO, toNumber, DEC_18, bn, increaseTime } = require('./utils')
+const {
+  assertBNEqual,
+  BN_ZERO,
+  toNumber,
+  DEC_18,
+  bn,
+  increaseTime,
+} = require('./utils')
 const truffleAssert = require('truffle-assertions')
 const xSNXCore = artifacts.require('ExtXC')
 const TradeAccounting = artifacts.require('ExtTA')
@@ -58,12 +65,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(
-        amountSusd,
-        ['0', '0'],
-        ['0', '0'],
-        ethAllocation,
-      )
+      await xsnx.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
 
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const debtValue = await tradeAccounting.extGetContractDebtValue()
@@ -122,7 +124,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await xsnx.mint(0, { value: toWei('0.01') })
 
       const totalSupply = await xsnx.totalSupply()
-      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
+      const snxBalanceBefore = await tradeAccounting.getSnxBalance()
 
       const feeDivisor = await xsnx.feeDivisors()
       const snxAmountAcquiredExFee = toWei('10')
@@ -132,7 +134,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await synthetix.transfer(xsnx.address, snxAcquired)
       const ethContribution = toWei('0.1')
 
-      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
+      const weiPerOneSnx = bn(ethContribution).mul(DEC_18).div(snxAcquired)
 
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const navOnMint = await tradeAccounting.extCalculateNetAssetValueOnMint(
@@ -148,6 +150,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         ethContribution,
         nonSnxAssetValue,
         totalSupply,
+        false
       )
 
       assertBNEqual(tokensToMint, contractTokensToMint)
@@ -159,7 +162,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await xsnx.mint(0, { value: toWei('0.01') })
 
       const totalSupply = await xsnx.totalSupply()
-      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
+      const snxBalanceBefore = await tradeAccounting.getSnxBalance()
 
       const feeDivisor = await xsnx.feeDivisors()
       const snxAmountAcquiredExFee = toWei('10')
@@ -169,7 +172,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await synthetix.transfer(xsnx.address, snxAcquired)
       const ethContribution = toWei('0.1')
 
-      const weiPerOneSnx = await tradeAccounting.extGetWeiPerOneSnxOnMint()
+      const weiPerOneSnx = bn(ethContribution).mul(DEC_18).div(snxAcquired)
 
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const navOnMint = await tradeAccounting.extCalculateNetAssetValueOnMint(
@@ -185,6 +188,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         ethContribution,
         nonSnxAssetValue,
         totalSupply,
+        false
       )
 
       assertBNEqual(tokensToMint, contractTokensToMint)

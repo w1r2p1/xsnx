@@ -389,13 +389,22 @@ contract TradeAccounting is Ownable {
         uint256 snxBalanceBefore,
         uint256 ethContributed,
         uint256 nonSnxAssetValue,
-        uint256 totalSupply
+        uint256 totalSupply,
+        bool allocateToEth
     ) public view returns (uint256) {
         if (totalSupply == 0) {
             return getInitialSupply();
         }
 
-        uint256 weiPerOneSnx = getWeiPerOneSnxOnMint();
+        uint256 weiPerOneSnx;
+        if (allocateToEth) {
+            weiPerOneSnx = getWeiPerOneSnxOnMint();
+        } else {
+            uint256 snxBalanceAfter = getSnxBalance();
+            uint256 snxContributed = snxBalanceAfter.sub(snxBalanceBefore);
+            weiPerOneSnx = ethContributed.mul(DEC_18).div(snxContributed);
+        }
+
         uint256 pricePerToken = calculateIssueTokenPrice(
             weiPerOneSnx,
             snxBalanceBefore,
