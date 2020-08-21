@@ -408,12 +408,12 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
      * @params: refer to `rebalanceToHedge` for descriptions, however params here are discretionary
      */
     function unwindStakedPosition(
-        uint256 totalSusdToBurn, // 2e18
+        uint256 totalSusdToBurn,
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
-        uint256 snxToSell // 1e16
+        uint256 snxToSell
     ) external onlyOwnerOrManager {
-        address activeAsset = getAssetCurrentlyActiveInSet(); // USDC
+        address activeAsset = getAssetCurrentlyActiveInSet();
         _unwindStakedPosition(
             totalSusdToBurn,
             activeAsset,
