@@ -329,48 +329,46 @@ module.exports = async function (deployer, network, accounts) {
             SET_TRANSFER_PROXY,
             ADDRESS_RESOLVER,
             REBALANCING_MODULE,
-          ) // done
+          ) 
           .then(async (xsnx) => {
             console.log('xsnx deployed')
 
-            await xsnx.approveSetTransferProxy(SET_ASSET_1) // done
+            await xsnx.approveSetTransferProxy(SET_ASSET_1) 
             console.log('xsnx: set asset 1 => transfer proxy approve')
-            await xsnx.approveSetTransferProxy(SET_ASSET_2) // done
+            await xsnx.approveSetTransferProxy(SET_ASSET_2) 
             console.log('xsnx: set asset 2 => transfer proxy approve')
 
-            await xsnx.setFeeDivisors('500', '500', '100') // done
+            await xsnx.setFeeDivisors('500', '500', '100') 
             console.log('xsnx: fee divisors set')
 
-            await xsnx.setSynthetixAddress() // done
+            await xsnx.setSynthetixAddress() 
             console.log('xsnx: synthetix set')
 
-            await tradeAccounting.setInstanceAddress(xsnx.address) // done
+            await tradeAccounting.setInstanceAddress(xsnx.address) 
             console.log('ta: xsnx address set')
 
-            await tradeAccounting.setSynthetixAddress() // done
+            await tradeAccounting.setSynthetixAddress() 
             console.log('ta: synthetix set')
-            await tradeAccounting.setSynthetixStateAddress() // done
+            await tradeAccounting.setSynthetixStateAddress() 
             console.log('ta: synth state set')
             await tradeAccounting.setCurve(
               CURVE_POOL,
               USDC_CURVE_INDEX,
               SUSD_CURVE_INDEX,
-            ) // done
+            ) 
             console.log('ta: curve set')
 
-            await tradeAccounting.approveKyber(SNX_ADDRESS) // done
+            await tradeAccounting.approveKyber(SNX_ADDRESS) 
             console.log('ta: approve kyber: snx')
-            await tradeAccounting.approveKyber(SUSD_ADDRESS) // necessary still?
-            console.log('ta: approve kyber: susd')
-            await tradeAccounting.approveKyber(SET_ASSET_1) // done
+            await tradeAccounting.approveKyber(SET_ASSET_1) 
             console.log('ta: approve kyber: set asset 1')
-            await tradeAccounting.approveKyber(SET_ASSET_2) // done
+            await tradeAccounting.approveKyber(SET_ASSET_2) 
             console.log('ta: approve kyber: set asset 2')
             await tradeAccounting.approveKyber(USDC_ADDRESS) // unnecessary for USDC-Sets
             console.log('ta: approve kyber: usdc')
-            await tradeAccounting.approveCurve(SUSD_ADDRESS) // done
+            await tradeAccounting.approveCurve(SUSD_ADDRESS) 
             console.log('ta: approve curve: susd')
-            await tradeAccounting.approveCurve(USDC_ADDRESS) // done
+            await tradeAccounting.approveCurve(USDC_ADDRESS) 
             console.log('ta: approve curve: usdc')
           })
       })
