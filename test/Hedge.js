@@ -41,16 +41,7 @@ contract('xSNXCore: Hedge function', async (accounts) => {
   })
 
   describe('Staking and hedging', async () => {
-    it('should revert when paused', async () => {
-      await xsnx.pause()
-      await truffleAssert.reverts(
-        xsnx.hedge(0, [0, 0], [0, 0], 0),
-        'Pausable: paused',
-      )
-    })
-
     it('should revert when called by non-owner', async () => {
-      await xsnx.unpause()
       await truffleAssert.reverts(
         xsnx.hedge(0, [0, 0], [0, 0], 0, { from: account1 }),
         'Non-admin caller',
