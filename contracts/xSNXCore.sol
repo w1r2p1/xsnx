@@ -82,6 +82,8 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         setTransferProxy = _setTransferProxy;
         addressResolver = IAddressResolver(_addressResolver);
         rebalancingModule = IRebalancingSetIssuanceModule(_rebalancingModule);
+
+        lastClaimedTimestamp = block.timestamp;
     }
 
     /* ========================================================================================= */
@@ -195,7 +197,7 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256[] calldata minKyberRates,
         uint256[] calldata minCurveReturns,
         uint256 ethAllocation
-    ) external onlyOwnerOrManager whenNotPaused {
+    ) external onlyOwnerOrManager {
         _stake(mintAmount);
 
         _allocateToEth(ethAllocation, minKyberRates[0], minCurveReturns[0]);
