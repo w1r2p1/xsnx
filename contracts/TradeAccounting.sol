@@ -109,8 +109,6 @@ contract TradeAccounting is Ownable {
 
     address[2] setComponentAddresses;
 
-    bool readSystemSettings;
-
     constructor(
         address _setAddress,
         address _kyberProxyAddress,
@@ -705,11 +703,8 @@ contract TradeAccounting is Ownable {
     }
 
     // returns inverse of target C-RATIO
-    function getIssuanceRatio() internal view returns (uint256 issuanceRatio) {
-        issuanceRatio = readSystemSettings
-            ? ISystemSettings(addressResolver.getAddress(systemSettingsName))
-                .issuanceRatio()
-            : synthetixState.issuanceRatio();
+    function getIssuanceRatio() internal view returns (uint256) {
+        return ISystemSettings(addressResolver.getAddress(systemSettingsName)).issuanceRatio();
     }
 
     // usd terms
@@ -1052,10 +1047,6 @@ contract TradeAccounting is Ownable {
         require(msg.sender == addressValidator, "Incorrect caller");
         require(nextCurveAddress == _nextCurveAddress, "Addresses don't match");
         curveFi = ICurveFi(nextCurveAddress);
-    }
-
-    function toggleSystemSettingsRead() public onlyOwner {
-        readSystemSettings = !readSystemSettings;
     }
 
     function() external payable {}
