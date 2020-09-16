@@ -1,7 +1,9 @@
 pragma solidity ^0.5.15;
 
+import "@openzeppelin/upgrades/contracts/Initializable.sol";
+
 /* Adapted from OpenZeppelin */
-contract Pausable {
+contract Pausable is Initializable {
     /**
      * @dev Emitted when the pause is triggered by a pauser.
      */
@@ -22,6 +24,15 @@ contract Pausable {
     constructor () internal {
         _paused = false;
         pauser = msg.sender;
+    }
+
+    /**
+     * @dev Initializes the contract in unpaused state. Assigns the Pauser role
+     * to the deployer. This function is called when the contract is used in a upgradeable context.
+     */
+    function initialize(address sender) public initializer {
+        _paused = false;
+        pauser = sender;
     }
 
     /**

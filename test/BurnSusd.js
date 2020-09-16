@@ -11,12 +11,17 @@ const MockWETH = artifacts.require('MockWETH')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
   const [deployerAccount, account1] = accounts
   before(async () => {
-    xsnx = await xSNXCore.deployed()
-    tradeAccounting = await TradeAccounting.deployed()
+    taProxy = await TradeAccountingProxy.deployed()
+    xsnxProxy = await xSNXCoreProxy.deployed()
+    tradeAccounting = await TradeAccounting.at(taProxy.address)
+    xsnx = await xSNXCore.at(xsnxProxy.address)
+
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
     setToken = await MockSetToken.deployed()

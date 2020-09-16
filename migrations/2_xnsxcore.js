@@ -1,8 +1,13 @@
 const migrationInputs = require('../util/migrationInputs')
-const ExtXCore = artifacts.require('ExtXC')
 const xSNXCore = artifacts.require('xSNXCore')
 const TradeAccounting = artifacts.require('TradeAccounting')
+
+//proxies
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
+
 // mock version
+const ExtXCore = artifacts.require('ExtXC')
 const ExtTradeAccounting = artifacts.require('ExtTA')
 
 // local env
@@ -25,10 +30,14 @@ const MockSynthetixState = artifacts.require('MockSynthetixState')
 const MockSystemSettings = artifacts.require('MockSystemSettings')
 
 // ["kovan, mainnet"]
-const DEPLOY_TO_NETWORK = 'kovan'
+const DEPLOY_TO_NETWORK = 'kovan';
 
 module.exports = async function (deployer, network, accounts) {
   if (network === 'development') {
+    const admin = accounts[0]
+    const cosigner1 = accounts[7]
+    const cosigner2 = accounts[8]
+
     return deployer.deploy(MockFeePool).then((feePool) => {
       return deployer.deploy(MockExchangeRates).then((exchangeRates) => {
         return deployer.deploy(MockRewardEscrow).then((rewardEscrow) => {
@@ -112,57 +121,66 @@ module.exports = async function (deployer, network, accounts) {
                                                   return deployer
                                                     .deploy(
                                                       ExtTradeAccounting,
-                                                      setToken.address,
-                                                      kyberProxy.address,
-                                                      addressResolver.address,
-                                                      susd.address,
-                                                      usdc.address,
-                                                      accounts[1],
-                                                      synthSymbols,
-                                                      setComponentAddresses,
                                                     )
                                                     .then(
                                                       async (
                                                         tradeAccounting,
                                                       ) => {
+                                                        let taProxy = await deployer.deploy(TradeAccountingProxy, tradeAccounting.address, admin, cosigner1, cosigner2);
+                                                        let taProxyCast = await ExtTradeAccounting.at(taProxy.address);  
+                                                        await taProxyCast.initialize(
+                                                          setToken.address,
+                                                          kyberProxy.address,
+                                                          addressResolver.address,
+                                                          susd.address,
+                                                          usdc.address,
+                                                          accounts[1],
+                                                          synthSymbols,
+                                                          setComponentAddresses,
+                                                          admin
+                                                        )
+                                          
                                                         return deployer
                                                           .deploy(
                                                             ExtXCore,
-                                                            tradeAccounting.address,
-                                                            setToken.address,
-                                                            synthetix.address,
-                                                            susd.address,
-                                                            susd.address, // used as placeholder for setTransferProxy which isn't used in testing
-                                                            addressResolver.address,
-                                                            rebalancingModule.address,
                                                           )
                                                           .then(
                                                             async (xsnx) => {
-                                                              console.log(
-                                                                'xsnx deployed',
+                                                              let xsnxProxy = await deployer.deploy(xSNXCoreProxy, xsnx.address, admin, cosigner1, cosigner2);
+                                                              let xsnxProxyCast = await ExtXCore.at(xsnxProxy.address);
+                                                              await xsnxProxyCast.initialize(      
+                                                                taProxyCast.address,
+                                                                setToken.address,
+                                                                synthetix.address,
+                                                                susd.address,
+                                                                susd.address, // used as placeholder for setTransferProxy which isn't used in testing
+                                                                addressResolver.address,
+                                                                rebalancingModule.address,
+                                                                admin
                                                               )
-                                                              await xsnx.approveMock(
+                                                              
+                                                              await xsnxProxyCast.approveMock(
                                                                 rebalancingModule.address,
                                                                 weth.address,
                                                               )
                                                               console.log(
                                                                 'xsnx: weth approved on rebalance module *mock purposes only*',
                                                               )
-                                                              await xsnx.approveMock(
+                                                              await xsnxProxyCast.approveMock(
                                                                 rebalancingModule.address,
                                                                 usdc.address,
                                                               )
                                                               console.log(
                                                                 'xsnx: usdc approved on rebalance module *mock purposes only*',
                                                               )
-                                                              await xsnx.approveMock(
+                                                              await xsnxProxyCast.approveMock(
                                                                 rebalancingModule.address,
                                                                 setToken.address,
                                                               )
                                                               console.log(
                                                                 'xsnx: set token approved on rebalance module *mock purposes only*',
                                                               )
-                                                              await xsnx.approveMock(
+                                                              await xsnxProxyCast.approveMock(
                                                                 synthetix.address,
                                                                 susd.address,
                                                               )
@@ -175,7 +193,7 @@ module.exports = async function (deployer, network, accounts) {
                                                                 susd.address,
                                                               )
 
-                                                              await xsnx.setFeeDivisors(
+                                                              await xsnxProxyCast.setFeeDivisors(
                                                                 '400',
                                                                 '400',
                                                                 '40',
@@ -184,46 +202,50 @@ module.exports = async function (deployer, network, accounts) {
                                                                 'xsnx: fee divisors set',
                                                               )
 
-                                                              await xsnx.setSynthetixAddress()
+                                                              await xsnxProxyCast.setSynthetixAddress()
                                                               console.log(
                                                                 'xsnx: synthetix set',
                                                               )
 
-                                                              await tradeAccounting.setInstanceAddress(
-                                                                xsnx.address,
+                                                              await taProxyCast.setInstanceAddress(
+                                                                xsnxProxyCast.address,
                                                               )
                                                               console.log(
                                                                 'ta: caller address set',
                                                               )
 
-                                                              await tradeAccounting.setSynthetixAddress()
+                                                              await taProxyCast.setSynthetixAddress()
+
                                                               console.log(
                                                                 'ta: synthetix set',
                                                               )
-                                                              await tradeAccounting.setSynthetixStateAddress()
+                                                              await taProxyCast.setSynthetixStateAddress()
+
                                                               console.log(
                                                                 'ta: synth state set',
                                                               )
 
-                                                              await tradeAccounting.approveKyber(
+                                                              await taProxyCast.approveKyber(
                                                                 synthetix.address,
                                                               )
                                                               console.log(
                                                                 'ta: approve kyber: snx',
                                                               )
-                                                              await tradeAccounting.approveKyber(
+
+                                                              await taProxyCast.approveKyber(
                                                                 susd.address,
                                                               )
                                                               console.log(
                                                                 'ta: approve kyber: susd',
                                                               )
-                                                              await tradeAccounting.approveKyber(
+
+                                                              await taProxyCast.approveKyber(
                                                                 weth.address,
                                                               )
                                                               console.log(
                                                                 'ta: approve kyber: set asset 1',
                                                               )
-                                                              await tradeAccounting.approveKyber(
+                                                              await taProxyCast.approveKyber(
                                                                 usdc.address,
                                                               )
                                                               console.log(
@@ -231,7 +253,8 @@ module.exports = async function (deployer, network, accounts) {
                                                               )
                                                               const USDC_CURVE_INDEX = 1
                                                               const SUSD_CURVE_INDEX = 3
-                                                              await tradeAccounting.setCurve(
+
+                                                              await taProxyCast.setCurve(
                                                                 curveFi.address,
                                                                 USDC_CURVE_INDEX,
                                                                 SUSD_CURVE_INDEX,
@@ -239,13 +262,13 @@ module.exports = async function (deployer, network, accounts) {
                                                               console.log(
                                                                 'ta: curve set',
                                                               )
-                                                              await tradeAccounting.approveCurve(
+                                                              await taProxyCast.approveCurve(
                                                                 susd.address,
                                                               )
                                                               console.log(
                                                                 'ta: approve curve: susd',
                                                               )
-                                                              await tradeAccounting.approveCurve(
+                                                              await taProxyCast.approveCurve(
                                                                 usdc.address,
                                                               )
                                                               console.log(
@@ -302,6 +325,9 @@ module.exports = async function (deployer, network, accounts) {
     )
     const SET_COMPONENT_ADDRESSES = [SET_ASSET_1, SET_ASSET_2]
     const ADDRESS_VALIDATOR = '0x885583955F14970CbC0046B91297e9915f4DE6E4'
+    //address of the owner role
+    const OWNER = accounts[0]
+    const COSIGNER2 = "<SECOND COSIGNER OF THE PROXIES>"
 
     const USDC_CURVE_INDEX = 1
     const SUSD_CURVE_INDEX = 3
@@ -309,29 +335,42 @@ module.exports = async function (deployer, network, accounts) {
     return deployer
       .deploy(
         TradeAccounting,
-        SET_ADDRESS,
-        KYBER_PROXY,
-        ADDRESS_RESOLVER,
-        SUSD_ADDRESS,
-        USDC_ADDRESS,
-        ADDRESS_VALIDATOR,
-        SYNTH_SYMBOLS,
-        SET_COMPONENT_ADDRESSES,
       )
-      .then((tradeAccounting) => {
+      .then((tradeAccountingImpl) => {
         return deployer
           .deploy(
             xSNXCore,
-            tradeAccounting.address,
-            SET_ADDRESS,
-            SNX_ADDRESS,
-            SUSD_ADDRESS,
-            SET_TRANSFER_PROXY,
-            ADDRESS_RESOLVER,
-            REBALANCING_MODULE,
           )
-          .then(async (xsnx) => {
+          .then(async (xsnxImpl) => {
             console.log('xsnx deployed')
+            let taProxy = await deployer.deploy(TradeAccountingProxy, tradeAccountingImpl.address, OWNER, ADDRESS_VALIDATOR, COSIGNER2)
+            let xsnxProxy = await deployer.deploy(xSNXCoreProxy, xsnxImpl.address, OWNER, ADDRESS_VALIDATOR, COSIGNER2)
+
+            let tradeAccounting = TradeAccounting.at(taProxy.address)
+            tradeAccounting.initialize(
+              SET_ADDRESS,
+              KYBER_PROXY,
+              ADDRESS_RESOLVER,
+              SUSD_ADDRESS,
+              USDC_ADDRESS,
+              ADDRESS_VALIDATOR,
+              SYNTH_SYMBOLS,
+              SET_COMPONENT_ADDRESSES,
+              OWNER
+            )
+            console.log("ta: proxy configured")
+            let xsnx = xSNXCore.at(xsnxProxy.address)
+            xSNXCore.initialize(
+              tradeAccounting.address,
+              SET_ADDRESS,
+              SNX_ADDRESS,
+              SUSD_ADDRESS,
+              SET_TRANSFER_PROXY,
+              ADDRESS_RESOLVER,
+              REBALANCING_MODULE,
+              OWNER
+            )
+            console.log("xsnx: proxy configured")
 
             await xsnx.approveSetTransferProxy(SET_ASSET_1)
             console.log('xsnx: set asset 1 => transfer proxy approve')

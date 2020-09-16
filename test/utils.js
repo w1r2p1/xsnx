@@ -11,6 +11,7 @@ const toNumber = (val) => Number(val.toString())
 const bn = val => new BN(val)
 const FIVE_HOURS = 60 * 60 * 5
 const FOUR_DAYS = 60 * 60 * 24 * 4
+const ONE_DAY = 60 * 60 * 24
 
 const increaseTime = async seconds => {
   const id = Date.now();
@@ -44,5 +45,6 @@ module.exports = {
   bn,
   increaseTime,
   FIVE_HOURS,
-  FOUR_DAYS
+  FOUR_DAYS,
+  ONE_DAY
 }

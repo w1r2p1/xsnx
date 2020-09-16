@@ -3,7 +3,7 @@ pragma solidity 0.5.15;
 import "../TradeAccounting.sol";
 
 contract ExtTA is TradeAccounting {
-    constructor(
+    function initialize(
         address setAddress, 
         address kyberProxyAddress, 
         address addressResolverAddress, 
@@ -11,17 +11,22 @@ contract ExtTA is TradeAccounting {
         address usdcAddress,
         address addressValidator,
         bytes32[2] memory synthSymbols, 
-        address[2] memory setComponentAddresses
-    ) public TradeAccounting(
-        setAddress, 
-        kyberProxyAddress, 
-        addressResolverAddress,
-        susdAddress,
-        usdcAddress,
-        addressValidator,
-        synthSymbols, 
-        setComponentAddresses
-    ) {}
+        address[2] memory setComponentAddresses,
+        address ownerAddress
+    ) public initializer {
+        TradeAccounting.initialize(
+            setAddress, 
+            kyberProxyAddress, 
+            addressResolverAddress,
+            susdAddress,
+            usdcAddress,
+            addressValidator,
+            synthSymbols, 
+            setComponentAddresses,
+            ownerAddress
+        );
+    }
+
     function extGetContractDebtValue() public view returns(uint) {
         return getContractDebtValue();
     }

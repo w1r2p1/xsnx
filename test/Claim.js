@@ -16,13 +16,18 @@ const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRewardEscrow = artifacts.require('MockRewardEscrow')
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Claim', async (accounts) => {
   const [deployerAccount, account1] = accounts
 
   beforeEach(async () => {
-    xsnx = await xSNXCore.deployed()
-    tradeAccounting = await ExtTradeAccounting.deployed()
+    taProxy = await TradeAccountingProxy.deployed()
+    xsnxProxy = await xSNXCoreProxy.deployed()
+    tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
+    xsnx = await xSNXCore.at(xsnxProxy.address)
+    
     feePool = await MockFeePool.deployed()
     susd = await MockSUSD.deployed()
     kyberProxy = await MockKyberProxy.deployed()

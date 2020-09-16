@@ -12,6 +12,8 @@ const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract(
   'TradeAccounting: Set Protocol: 18 Dec Active Asset',
@@ -19,8 +21,10 @@ contract(
     const [deployerAccount] = accounts
 
     before(async () => {
-      xsnx = await xSNXCore.deployed()
-      tradeAccounting = await ExtTradeAccounting.deployed()
+      taProxy = await TradeAccountingProxy.deployed()
+      xsnxProxy = await xSNXCoreProxy.deployed()
+      tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
+      xsnx = await xSNXCore.at(xsnxProxy.address)
 
       synthetix = await MockSynthetix.deployed()
       setToken = await MockSetToken.deployed()
@@ -209,8 +213,10 @@ contract(
   async (accounts) => {
     const [deployerAccount] = accounts
     before(async () => {
-      xsnx = await xSNXCore.deployed()
-      tradeAccounting = await ExtTradeAccounting.deployed()
+      taProxy = await TradeAccountingProxy.deployed()
+      xsnxProxy = await xSNXCoreProxy.deployed()
+      tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
+      xsnx = await xSNXCore.at(xsnxProxy.address)
 
       synthetix = await MockSynthetix.deployed()
       setToken = await MockSetToken.deployed()
