@@ -1,9 +1,10 @@
 pragma solidity 0.5.15;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/ownership/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20Detailed.sol";
+import "@openzeppelin/upgrades/contracts/Initializable.sol";
 
 import "synthetix/contracts/interfaces/IFeePool.sol";
 
@@ -13,8 +14,7 @@ import "./helpers/Pausable.sol";
 import "./interface/IRebalancingSetIssuanceModule.sol";
 
 contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
-    address
-        private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address private susdAddress;
     address private setAddress;
     address private snxAddress;
@@ -66,15 +66,21 @@ contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
 
     FeeDivisors public feeDivisors;
 
-    constructor(
+    function initialize(
         address payable _tradeAccountingAddress,
         address _setAddress,
         address _snxAddress,
         address _susdAddress,
         address _setTransferProxy,
         address _addressResolver,
-        address _rebalancingModule
-    ) public ERC20Detailed("xSNX", "xSNXa", 18) {
+        address _rebalancingModule,
+        address _ownerAddress
+    ) public initializer {
+        Ownable.initialize(_ownerAddress);
+        ERC20Detailed.initialize("xSNX", "xSNXa", 18);
+        Pausable.initialize(_ownerAddress);
+
+        //Set parameters
         tradeAccounting = TradeAccounting(_tradeAccountingAddress);
         setAddress = _setAddress;
         snxAddress = _snxAddress;

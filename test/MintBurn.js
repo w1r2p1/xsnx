@@ -20,6 +20,8 @@ const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRewardEscrow = artifacts.require('MockRewardEscrow')
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 const toWei = web3.utils.toWei
 
@@ -28,10 +30,13 @@ contract('xSNXCore: Minting', async (accounts) => {
   const ethValue = toWei('0.1')
 
   beforeEach(async () => {
-    xsnx = await xSNXCore.deployed()
+    taProxy = await TradeAccountingProxy.deployed()
+    xsnxProxy = await xSNXCoreProxy.deployed()
+    tradeAccounting = await TradeAccounting.at(taProxy.address)
+    xsnx = await xSNXCore.at(xsnxProxy.address)
+
     synthetix = await MockSynthetix.deployed()
     kyberProxy = await MockKyberProxy.deployed()
-    tradeAccounting = await TradeAccounting.deployed()
     susd = await MockSUSD.deployed()
     weth = await MockWETH.deployed()
     usdc = await MockUSDC.deployed()

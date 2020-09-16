@@ -11,13 +11,18 @@ const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Hedge function', async (accounts) => {
   const [deployerAccount, account1] = accounts
 
   beforeEach(async () => {
-    xsnx = await xSNXCore.deployed()
-    tradeAccounting = await TradeAccounting.deployed()
+    taProxy = await TradeAccountingProxy.deployed()
+    xsnxProxy = await xSNXCoreProxy.deployed()
+    tradeAccounting = await TradeAccounting.at(taProxy.address)
+    xsnx = await xSNXCore.at(xsnxProxy.address)
+
     synthetix = await MockSynthetix.deployed()
     susd = await MockSUSD.deployed()
     usdc = await MockUSDC.deployed()

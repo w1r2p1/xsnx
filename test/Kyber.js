@@ -6,6 +6,7 @@ const MockSUSD = artifacts.require('MockSUSD')
 const MockWETH = artifacts.require('MockWETH')
 const MockUSDC = artifacts.require('MockUSDC')
 const ExtTradeAccounting = artifacts.require('ExtTA')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 // Generic tests for Kyber
 // Functional specific testing in mint, burn, claim, rebalance files
@@ -13,7 +14,8 @@ contract('TradeAccounting: Kyber', async () => {
   const tokenAmount = web3.utils.toWei('1')
 
   before(async () => {
-    tradeAccounting = await ExtTradeAccounting.deployed()
+    taProxy = await TradeAccountingProxy.deployed()
+    tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
     synthetix = await MockSynthetix.deployed()
     susd = await MockSUSD.deployed()
     weth = await MockWETH.deployed()

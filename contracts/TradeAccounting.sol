@@ -1,9 +1,10 @@
 pragma solidity 0.5.15;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/ownership/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20Detailed.sol";
+import "@openzeppelin/upgrades/contracts/Initializable.sol";
 
 import "synthetix/contracts/interfaces/ISynthetix.sol";
 import "synthetix/contracts/interfaces/IRewardEscrow.sol";
@@ -109,7 +110,7 @@ contract TradeAccounting is Ownable {
 
     address[2] setComponentAddresses;
 
-    constructor(
+    function initialize(
         address _setAddress,
         address _kyberProxyAddress,
         address _addressResolver,
@@ -117,8 +118,11 @@ contract TradeAccounting is Ownable {
         address _usdcAddress,
         address _addressValidator,
         bytes32[2] memory _synthSymbols,
-        address[2] memory _setComponentAddresses
-    ) public {
+        address[2] memory _setComponentAddresses,
+        address _ownerAddress
+    ) public initializer {
+        Ownable.initialize(_ownerAddress);
+
         setAddress = _setAddress;
         kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
         addressResolver = IAddressResolver(_addressResolver);

@@ -22,18 +22,23 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockFeePool = artifacts.require('MockFeePool')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
+const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract(
   'xSNXCore, TradeAccounting: Address Setters and Utils',
   async (accounts) => {
     const [deployer, account1, account2, fakeCurveAddress] = accounts
     before(async () => {
-      xsnx = await xSNXCore.deployed()
+      taProxy = await TradeAccountingProxy.deployed()
+      xsnxProxy = await xSNXCoreProxy.deployed()
+      tradeAccounting = await TradeAccounting.at(taProxy.address)
+      xsnx = await xSNXCore.at(xsnxProxy.address)
+
       addressResolver = await MockAddressResolver.deployed()
       susd = await MockSUSD.deployed()
       synthetix = await MockSynthetix.deployed()
       rebalancingModule = await MockRebalancingModule.deployed()
-      tradeAccounting = await TradeAccounting.deployed()
       weth = await MockWETH.deployed()
       usdc = await MockUSDC.deployed()
       kyberProxy = await MockKyberProxy.deployed()
