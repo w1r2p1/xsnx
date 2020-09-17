@@ -1,6 +1,7 @@
 const { assertBNEqual, BN_ZERO, bn, DEC_18 } = require('./utils')
 const truffleAssert = require('truffle-assertions')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
@@ -12,7 +13,8 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
@@ -20,9 +22,11 @@ contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
 
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
@@ -58,22 +62,22 @@ contract('xSNXCore: Rebalance Set to Eth', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
         ethAllocation,
       )
 
-      const setBalance = await setToken.balanceOf(xsnx.address)
-      await setToken.transfer(xsnx.address, bn(setBalance).div(bn(10)))
+      const setBalance = await setToken.balanceOf(xsnxAdmin.address)
+      await setToken.transfer(xsnxAdmin.address, bn(setBalance).div(bn(10)))
 
 
       // this should fail if rebalance not necessary
       const setToSell = await tradeAccounting.calculateSetToSellForRebalanceSetToEth()
       assert(true)
 
-      await xsnx.rebalanceSetToEth('0')
+      await xsnxAdmin.rebalanceSetToEth('0')
 
       await truffleAssert.reverts(
         tradeAccounting.calculateSetToSellForRebalanceSetToEth(),

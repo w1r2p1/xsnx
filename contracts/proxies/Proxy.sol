@@ -43,7 +43,7 @@ contract Proxy {
         address signer2
     ) public {
         require(
-            proxyAdmin != address(0),
+            implementation != address(0),
             "Invalid implementation address provided"
         );
         require(
@@ -70,7 +70,7 @@ contract Proxy {
     }
 
     /**
-     * @dev Comfirms a previously proposed implementation if the sender is one of the two cosigners
+     * @dev Confirms a previously proposed implementation if the sender is one of the two cosigners
      * @param confirmedImplementation the address of previously proposed implementation (has to match the previously proposed implementation)
      */
     function confirmImplementation(address confirmedImplementation)

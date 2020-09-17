@@ -7,7 +7,8 @@ const {
   FOUR_DAYS,
 } = require('./utils')
 const truffleAssert = require('truffle-assertions')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
@@ -20,7 +21,8 @@ const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockFeePool = artifacts.require('MockFeePool')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
@@ -28,9 +30,11 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
     
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
@@ -67,7 +71,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
 
       const debtValueBefore = await tradeAccounting.extGetContractDebtValue() // usd terms
       const ethBalBefore = await tradeAccounting.getEthBalance()
@@ -76,7 +80,7 @@ contract('xSNXCore: Rebalance Unwinds', async (accounts) => {
       const someAmountDebt = bn(debtValueBefore).div(bn(2))
       const someAmountSnx = bn(snxBalanceBefore).div(bn(6))
 
-      await xsnx.unwindStakedPosition(
+      await xsnxAdmin.unwindStakedPosition(
         someAmountDebt,
         ['0', '0'],
         ['0', '0'],
@@ -99,9 +103,11 @@ contract('xSNXCore: Liquidation Unwind', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
 
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
@@ -131,7 +137,7 @@ contract('xSNXCore: Liquidation Unwind', async (accounts) => {
     await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
     const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
     const debtBalance = await synthetix.debtBalanceOf(
-      xsnx.address,
+      xsnxAdmin.address,
       web3.utils.fromAscii('sUSD'),
     )
     const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -139,7 +145,7 @@ contract('xSNXCore: Liquidation Unwind', async (accounts) => {
       amountSusd,
     )
 
-    await xsnx.hedge(
+    await xsnxAdmin.hedge(
       amountSusd.sub(bn(1)),
       ['0', '0'],
       ['0', '0'],
@@ -150,13 +156,13 @@ contract('xSNXCore: Liquidation Unwind', async (accounts) => {
   describe('Liquidation Unwind', async () => {
     it('should revert if there has been a claiming transaction within the liquidation wait period', async () => {
       await susd.transfer(feePool.address, web3.utils.toWei('5'))
-      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
+      await xsnxAdmin.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
 
       const susdToBurn = web3.utils.toWei('0.05')
       const minRates = ['0', '0']
       const snxToSell = web3.utils.toWei('0.02')
       await truffleAssert.reverts(
-        xsnx.liquidationUnwind(susdToBurn, minRates, minRates, snxToSell),
+        xsnxAdmin.liquidationUnwind(susdToBurn, minRates, minRates, snxToSell),
         'Liquidation not available',
       )
     })
@@ -172,7 +178,7 @@ contract('xSNXCore: Liquidation Unwind', async (accounts) => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
       const minRates = ['0', '0']
 
-      await xsnx.liquidationUnwind(
+      await xsnxAdmin.liquidationUnwind(
         bn(debtValueBefore).div(bn(2)),
         minRates,
         minRates,

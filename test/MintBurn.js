@@ -8,7 +8,8 @@ const {
   increaseTime,
 } = require('./utils')
 const truffleAssert = require('truffle-assertions')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
@@ -20,7 +21,8 @@ const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRewardEscrow = artifacts.require('MockRewardEscrow')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 const toWei = web3.utils.toWei
@@ -31,9 +33,11 @@ contract('xSNXCore: Minting', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
 
     synthetix = await MockSynthetix.deployed()
     kyberProxy = await MockKyberProxy.deployed()
@@ -70,7 +74,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
 
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
       const debtValue = await tradeAccounting.extGetContractDebtValue()
@@ -136,7 +140,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisor.mintFee))
       const snxAcquired = bn(snxAmountAcquiredExFee).sub(fee)
 
-      await synthetix.transfer(xsnx.address, snxAcquired)
+      await synthetix.transfer(xsnxAdmin.address, snxAcquired)
       const ethContribution = toWei('0.1')
 
       const weiPerOneSnx = bn(ethContribution).mul(DEC_18).div(snxAcquired)
@@ -169,12 +173,12 @@ contract('xSNXCore: Minting', async (accounts) => {
       const totalSupply = await xsnx.totalSupply()
       const snxBalanceBefore = await tradeAccounting.getSnxBalance()
 
-      const feeDivisor = await xsnx.feeDivisors()
+      const feeDivisors = await xsnx.feeDivisors()
       const snxAmountAcquiredExFee = toWei('10')
-      const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisor.mintFee))
+      const fee = bn(snxAmountAcquiredExFee).div(bn(feeDivisors.mintFee))
       const snxAcquired = bn(snxAmountAcquiredExFee).sub(fee)
 
-      await synthetix.transfer(xsnx.address, snxAcquired)
+      await synthetix.transfer(xsnxAdmin.address, snxAcquired)
       const ethContribution = toWei('0.1')
 
       const weiPerOneSnx = bn(ethContribution).mul(DEC_18).div(snxAcquired)
@@ -202,8 +206,11 @@ contract('xSNXCore: Minting', async (accounts) => {
     it('should correctly calculate number of tokens to mint with SNX w/ no escrowed bal', async () => {
       await rewardEscrow.setBalance('0')
       const totalSupply = await xsnx.totalSupply()
-      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
-      const snxToSend = toWei('10')
+      const snxBalanceBefore = await synthetix.balanceOf(xsnxAdmin.address)
+      const snxToSendBeforeFee = toWei('10')
+      const feeDivisors = await xsnx.feeDivisors()
+      const fee = bn(snxToSendBeforeFee).div(bn(feeDivisors.mintFee))
+      const snxContribution = bn(snxToSendBeforeFee).sub(fee)
 
       const snxUsdObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('SNX'),
@@ -214,7 +221,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       )
       const ethUsd = ethUsdObj[0]
       const weiPerOneSnx = bn(snxUsd).mul(DEC_18).div(bn(ethUsd))
-      const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxToSend)).div(DEC_18)
+      const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxContribution)).div(DEC_18)
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
 
       const pricePerToken = await tradeAccounting.calculateIssueTokenPrice(
@@ -230,7 +237,7 @@ contract('xSNXCore: Minting', async (accounts) => {
 
       const contractTokensToMint = await tradeAccounting.calculateTokensToMintWithSnx(
         snxBalanceBefore,
-        snxToSend,
+        snxContribution,
         totalSupply,
       )
 
@@ -239,8 +246,11 @@ contract('xSNXCore: Minting', async (accounts) => {
     it('should correctly calculate number of tokens to mint with SNX w/ escrowed bal', async () => {
       await rewardEscrow.setBalance(web3.utils.toWei('1'))
       const totalSupply = await xsnx.totalSupply()
-      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
-      const snxToSend = toWei('10')
+      const snxBalanceBefore = await synthetix.balanceOf(xsnxAdmin.address)
+      const snxToSendBeforeFee = toWei('10')
+      const feeDivisors = await xsnx.feeDivisors()
+      const fee = bn(snxToSendBeforeFee).div(bn(feeDivisors.mintFee))
+      const snxContribution = bn(snxToSendBeforeFee).sub(fee)
 
       const snxUsdObj = await exchangeRates.rateAndUpdatedTime(
         web3.utils.fromAscii('SNX'),
@@ -251,7 +261,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       )
       const ethUsd = ethUsdObj[0]
       const weiPerOneSnx = bn(snxUsd).mul(DEC_18).div(bn(ethUsd))
-      const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxToSend)).div(DEC_18)
+      const proxyEthUsedForSnx = weiPerOneSnx.mul(bn(snxContribution)).div(DEC_18)
       const nonSnxAssetValue = await tradeAccounting.extCalculateNonSnxAssetValue()
 
       const pricePerToken = await tradeAccounting.calculateIssueTokenPrice(
@@ -267,7 +277,7 @@ contract('xSNXCore: Minting', async (accounts) => {
 
       const contractTokensToMint = await tradeAccounting.calculateTokensToMintWithSnx(
         snxBalanceBefore,
-        snxToSend,
+        snxContribution,
         totalSupply,
       )
 
@@ -294,10 +304,10 @@ contract('xSNXCore: Minting', async (accounts) => {
     it('should buy SNX with ETH', async () => {
       await xsnx.unpause({ from: deployerAccount })
       await synthetix.transfer(kyberProxy.address, toWei('100'))
-      const snxBalanceBefore = await synthetix.balanceOf(xsnx.address)
+      const snxBalanceBefore = await synthetix.balanceOf(xsnxAdmin.address)
       await xsnx.mint(0, { value: ethValue, from: account1 })
 
-      const snxBalanceAfter = await synthetix.balanceOf(xsnx.address)
+      const snxBalanceAfter = await synthetix.balanceOf(xsnxAdmin.address)
       assert.equal(snxBalanceAfter.gt(snxBalanceBefore), true)
     })
 
@@ -307,12 +317,12 @@ contract('xSNXCore: Minting', async (accounts) => {
     })
 
     it('should charge an ETH fee on mint equal to fee divisor', async () => {
-      const withdrawableFeesBefore = await xsnx.withdrawableEthFees()
+      const withdrawableFeesBefore = await web3.eth.getBalance(xsnx.address)
       const feeDivisors = await xsnx.feeDivisors()
       await xsnx.mint(0, { value: ethValue })
-      const withdrawableFeesAfter = await xsnx.withdrawableEthFees()
+      const withdrawableFeesAfter = await web3.eth.getBalance(xsnx.address)
       assertBNEqual(
-        withdrawableFeesAfter.sub(withdrawableFeesBefore),
+        bn(withdrawableFeesAfter).sub(bn(withdrawableFeesBefore)),
         bn(ethValue).div(bn(feeDivisors.mintFee)),
       )
     })
@@ -328,7 +338,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await weth.transfer(kyberProxy.address, toWei('60'))
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
+        xsnxAdmin.address,
         web3.utils.fromAscii('sUSD'),
       )
       const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -336,7 +346,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
 
       const xsnxSupply = await xsnx.totalSupply()
       const xsnxToBurn = bn(xsnxSupply).div(bn(50))
@@ -391,7 +401,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await xsnx.mint(0, { value: toWei('0.01') })
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
+        xsnxAdmin.address,
         web3.utils.fromAscii('sUSD'),
       )
       const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -399,7 +409,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
 
       const {
         weiPerOneSnx,
@@ -438,7 +448,7 @@ contract('xSNXCore: Minting', async (accounts) => {
       await xsnx.mint(0, { value: toWei('0.01') })
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
+        xsnxAdmin.address,
         web3.utils.fromAscii('sUSD'),
       )
       const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -446,7 +456,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
 
       const {
         weiPerOneSnx,
@@ -588,7 +598,7 @@ contract('xSNXCore: Minting', async (accounts) => {
 
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
+        xsnxAdmin.address,
         web3.utils.fromAscii('sUSD'),
       )
       const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -596,7 +606,7 @@ contract('xSNXCore: Minting', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, [0, 0], [0, 0], ethAllocation)
       const account1Bal = await xsnx.balanceOf(account1)
 
       const ethBalBefore = await web3.eth.getBalance(account1)

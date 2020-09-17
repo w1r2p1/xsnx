@@ -1,10 +1,11 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const { assertBNEqual, BN_ZERO, DEC_18, DEC_6, bn } = require('./utils')
-const ExtTradeAccounting = artifacts.require('ExtTA')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
+const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockCollateralSet = artifacts.require('MockCollateralSet')
-const xSNXCore = artifacts.require('ExtXC')
 const MockWETH = artifacts.require('MockWETH')
 const MockSUSD = artifacts.require('MockSUSD')
 const MockUSDC = artifacts.require('MockUSDC')
@@ -12,7 +13,8 @@ const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract(
@@ -22,9 +24,11 @@ contract(
 
     before(async () => {
       taProxy = await TradeAccountingProxy.deployed()
-      xsnxProxy = await xSNXCoreProxy.deployed()
-      tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
-      xsnx = await xSNXCore.at(xsnxProxy.address)
+      xsnxAdminProxy = await xSNXAdminProxy.deployed()
+      xsnxProxy = await xSNXProxy.deployed()
+      tradeAccounting = await TradeAccounting.at(taProxy.address)
+      xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+      xsnx = await xSNX.at(xsnxProxy.address)
 
       synthetix = await MockSynthetix.deployed()
       setToken = await MockSetToken.deployed()
@@ -58,7 +62,7 @@ contract(
         amountSusd,
       )
 
-      await xsnx.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
+      await xsnxAdmin.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation)
     })
 
     describe('Set Issuance and Redemption with 18 decimal asset (WETH)', async () => {
@@ -111,14 +115,14 @@ contract(
       })
 
       it('should register a balance in the active asset', async () => {
-        await weth.transfer(xsnx.address, '100')
+        await weth.transfer(xsnxAdmin.address, '100')
         const assetBal = await tradeAccounting.getActiveSetAssetBalance()
         assertBNEqual(assetBal.gt(BN_ZERO), true)
       })
 
       // Set internal accounting works the same for tokens of different decimals
       it('should calculate the correct set issuance quantity', async () => {
-        await weth.transfer(xsnx.address, web3.utils.toWei('1.5'))
+        await weth.transfer(xsnxAdmin.address, web3.utils.toWei('1.5'))
         const componentQuantity = await tradeAccounting.getActiveSetAssetBalance()
         const baseSetNaturalUnit = await tradeAccounting.extGetBaseSetNaturalUnit()
         const baseSetComponentUnits = await tradeAccounting.extGetBaseSetComponentUnits()
@@ -180,7 +184,6 @@ contract(
       it('should calculate Set holdings in wei correctly', async () => {
         // e.g. 100 usdc or 10 weth underlying Set holdings
         const underlyingTokens = await tradeAccounting.extGetSetCollateralTokens()
-        const decimals = await weth.decimals()
         const underlyingTokensAdjusted = bn(underlyingTokens)
           .mul(DEC_18)
           .div(DEC_18) // WETH = 18 dec
@@ -214,9 +217,11 @@ contract(
     const [deployerAccount] = accounts
     before(async () => {
       taProxy = await TradeAccountingProxy.deployed()
-      xsnxProxy = await xSNXCoreProxy.deployed()
-      tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
-      xsnx = await xSNXCore.at(xsnxProxy.address)
+      xsnxAdminProxy = await xSNXAdminProxy.deployed()
+      xsnxProxy = await xSNXProxy.deployed()
+      tradeAccounting = await TradeAccounting.at(taProxy.address)
+      xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+      xsnx = await xSNX.at(xsnxProxy.address)
 
       synthetix = await MockSynthetix.deployed()
       setToken = await MockSetToken.deployed()
@@ -258,7 +263,7 @@ contract(
         amountSusd,
       )
 
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
@@ -317,7 +322,7 @@ contract(
 
       // residue/dust still there but most will have been allocated to Set
       it('should register a balance in the active asset', async () => {
-        await usdc.transfer(xsnx.address, '100')
+        await usdc.transfer(xsnxAdmin.address, '100')
         const assetBal = await tradeAccounting.getActiveSetAssetBalance()
         assertBNEqual(assetBal.gt(BN_ZERO), true)
       })

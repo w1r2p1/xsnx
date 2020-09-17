@@ -1,7 +1,8 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
 const { assertBNEqual, BN_ZERO, bn } = require('./utils')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
@@ -11,17 +12,21 @@ const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
+
 
 contract('xSNXCore: Hedge function', async (accounts) => {
   const [deployerAccount, account1] = accounts
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
 
     synthetix = await MockSynthetix.deployed()
     susd = await MockSUSD.deployed()
@@ -48,28 +53,28 @@ contract('xSNXCore: Hedge function', async (accounts) => {
   describe('Staking and hedging', async () => {
     it('should revert when called by non-owner', async () => {
       await truffleAssert.reverts(
-        xsnx.hedge(0, [0, 0], [0, 0], 0, { from: account1 }),
+        xsnxAdmin.hedge(0, [0, 0], [0, 0], 0, { from: account1 }),
         'Non-admin caller',
       )
     })
 
     it('should result in an ETH balance', async () => {
-      const ethBalBefore = await web3.eth.getBalance(xsnx.address)
+      const ethBalBefore = await web3.eth.getBalance(xsnxAdmin.address)
       await xsnx.mint('0', { value: web3.utils.toWei('0.01') })
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
-      await xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation, {
+      await xsnxAdmin.hedge(amountSusd, [0, 0], [0, 0], ethAllocation, {
         from: deployerAccount,
       })
-      const ethBalAfter = await web3.eth.getBalance(xsnx.address)
+      const ethBalAfter = await web3.eth.getBalance(xsnxAdmin.address)
       assert(bn(ethBalAfter).gt(bn(ethBalBefore)), true)
     })
 
     it('should result in a Set balance', async () => {
-      const setBal = await setToken.balanceOf(xsnx.address)
+      const setBal = await setToken.balanceOf(xsnxAdmin.address)
       assert(setBal.gt(BN_ZERO), true)
     })
   })

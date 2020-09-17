@@ -1,9 +1,9 @@
 pragma solidity 0.5.15;
 
-import "../xSNXCore.sol";
+import "../xSNXAdmin.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
-contract ExtXC is xSNXCore {
+contract ExtXAdmin is xSNXAdmin {
     uint256 private constant MAX_UINT = 2**256 - 1;
     
     function initialize(
@@ -16,7 +16,7 @@ contract ExtXC is xSNXCore {
         address _rebalancingModule,
         address _ownerAddress
     ) public initializer {
-        xSNXCore.initialize(
+        xSNXAdmin.initialize(
             _tradeAccountingAddress, 
             _setAddress,
             _snxAddress,

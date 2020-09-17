@@ -1,5 +1,6 @@
 const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime } = require('./utils')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
@@ -11,16 +12,19 @@ const MockWETH = artifacts.require('MockWETH')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
   const [deployerAccount, account1] = accounts
   before(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
 
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
@@ -85,7 +89,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         [0, 0],
         [0, 0],
@@ -94,10 +98,9 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
 
       const contractDebtValue = await tradeAccounting.extGetContractDebtValue()
       const issuanceRatio = await tradeAccounting.extGetIssuanceRatio()
-
+      
       const totalSupply = await xsnx.totalSupply()
       const tokensToRedeem = bn(totalSupply).div(bn(10))
-
       const susdToBurnForRedemption = await tradeAccounting.calculateSusdToBurnForRedemption(
         tokensToRedeem,
         totalSupply,

@@ -9,7 +9,9 @@ const {
   increaseTime,
   FOUR_DAYS,
 } = require('./utils')
-const xSNXCore = artifacts.require('ExtXC')
+const { web3 } = require('@openzeppelin/test-helpers/src/setup')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockAddressResolver = artifacts.require('MockAddressResolver')
 const MockSUSD = artifacts.require('MockSUSD')
@@ -22,7 +24,8 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockFeePool = artifacts.require('MockFeePool')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract(
@@ -31,9 +34,11 @@ contract(
     const [deployer, account1, account2, fakeCurveAddress] = accounts
     before(async () => {
       taProxy = await TradeAccountingProxy.deployed()
-      xsnxProxy = await xSNXCoreProxy.deployed()
+      xsnxAdminProxy = await xSNXAdminProxy.deployed()
+      xsnxProxy = await xSNXProxy.deployed()
       tradeAccounting = await TradeAccounting.at(taProxy.address)
-      xsnx = await xSNXCore.at(xsnxProxy.address)
+      xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+      xsnx = await xSNX.at(xsnxProxy.address)
 
       addressResolver = await MockAddressResolver.deployed()
       susd = await MockSUSD.deployed()
@@ -62,7 +67,7 @@ contract(
       })
 
       it('should be able to set the xSNX address on TradeAccounting', async () => {
-        await tradeAccounting.setInstanceAddress(xsnx.address)
+        await tradeAccounting.setAdminInstanceAddress(xsnxAdmin.address)
         assert(true)
       })
     })
@@ -134,7 +139,7 @@ contract(
         await synthetix.transfer(rewardEscrow.address, web3.utils.toWei('2'))
         await rewardEscrow.setSnxAddress(synthetix.address)
         await rewardEscrow.setBalance(web3.utils.toWei('1'))
-        await xsnx.vest()
+        await xsnxAdmin.vest()
         const snxBalanceAfter = await tradeAccounting.getSnxBalance()
 
         assertBNEqual(bn(snxBalanceAfter).gt(bn(snxBalanceBefore)), true)
@@ -146,7 +151,7 @@ contract(
         await truffleAssert.reverts(xsnx.withdrawFees({ from: account1 }))
       })
 
-      it('should result in incremental ETH and sUSD in admin wallet', async () => {
+      it('should result in incremental ETH, sUSD and SNX in admin wallet', async () => {
         await setToken.transfer(
           rebalancingModule.address,
           web3.utils.toWei('20'),
@@ -165,28 +170,34 @@ contract(
         await usdc.transfer(curve.address, '100000000')
 
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
+
+        await synthetix.approve(xsnx.address, web3.utils.toWei('1'))
+        await xsnx.mintWithSnx(web3.utils.toWei('1'))
+
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const amountSusd = bn(snxValueHeld).div(bn(8)) // 800% c-ratio
         const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
           amountSusd,
         )
 
-        await xsnx.hedge(
+        await xsnxAdmin.hedge(
           amountSusd,
           ['0', '0'],
           ['0', '0'],
           ethAllocation,
         )
 
-        await xsnx.claim(0, [0, 0], [0, 0], true)
+        await xsnxAdmin.claim(0, [0, 0], [0, 0], true)
 
         const contractEthBalBefore = await web3.eth.getBalance(xsnx.address)
         const susdBalBefore = await susd.balanceOf(deployer)
-
+        const snxBalBefore = await synthetix.balanceOf(deployer)
+        
         await xsnx.withdrawFees()
-
+        
         const contractEthBalAfter = await web3.eth.getBalance(xsnx.address)
         const susdBalAfter = await susd.balanceOf(deployer)
+        const snxBalAfter = await synthetix.balanceOf(deployer)
 
         // testing that the contract dispenses ETH
         // instead of testing that the admin account earns more ETH
@@ -196,12 +207,13 @@ contract(
           true,
         )
         assertBNEqual(bn(susdBalAfter).gt(bn(susdBalBefore)), true)
+        assertBNEqual(bn(snxBalAfter).gt(bn(snxBalBefore)), true)
       })
     })
 
     describe('Setting manager privilege', async () => {
       it('should be able to set a manager privilege', async () => {
-        await xsnx.setManagerAddress(account1)
+        await xsnxAdmin.setManagerAddress(account1)
         assert(true)
       })
       it('should give the manager management privileges', async () => {
@@ -209,7 +221,7 @@ contract(
 
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
-          xsnx.address,
+          xsnxAdmin.address,
           web3.utils.fromAscii('sUSD'),
         )
         const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -217,7 +229,7 @@ contract(
           amountSusd,
         )
 
-        await xsnx.hedge(
+        await xsnxAdmin.hedge(
           amountSusd,
           [0, 0],
           [0, 0],
@@ -232,7 +244,7 @@ contract(
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
-          xsnx.address,
+          xsnxAdmin.address,
           web3.utils.fromAscii('sUSD'),
         )
         const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -241,7 +253,7 @@ contract(
         )
 
         await truffleAssert.reverts(
-          xsnx.hedge(amountSusd, [0, 0], [0, 0], ethAllocation, {
+          xsnxAdmin.hedge(amountSusd, [0, 0], [0, 0], ethAllocation, {
             from: account2,
           }),
           'Non-admin caller',
@@ -254,7 +266,7 @@ contract(
         await tradeAccounting.setCurve(curve.address, 1, 3)
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
-          xsnx.address,
+          xsnxAdmin.address,
           web3.utils.fromAscii('sUSD'),
         )
         const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -262,7 +274,7 @@ contract(
           amountSusd,
         )
 
-        await xsnx.hedge(
+        await xsnxAdmin.hedge(
           amountSusd,
           ['0', '0'],
           ['0', '0'],
@@ -281,7 +293,7 @@ contract(
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
-          xsnx.address,
+          xsnxAdmin.address,
           web3.utils.fromAscii('sUSD'),
         )
         const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -289,7 +301,7 @@ contract(
           amountSusd,
         )
 
-        await xsnx.hedge(
+        await xsnxAdmin.hedge(
           amountSusd,
           ['0', '0'],
           ['0', '0'],
@@ -309,7 +321,7 @@ contract(
         await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
         const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
         const debtBalance = await synthetix.debtBalanceOf(
-          xsnx.address,
+          xsnxAdmin.address,
           web3.utils.fromAscii('sUSD'),
         )
         const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -319,7 +331,7 @@ contract(
 
         // this should fail because fakeCurveAddress is now active and it isn't a Curve Mock
         await truffleAssert.reverts(
-          xsnx.hedge(
+          xsnxAdmin.hedge(
             amountSusd,
             ['0', '0'],
             ['0', '0'],
