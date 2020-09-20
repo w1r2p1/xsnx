@@ -270,9 +270,9 @@ contract TradeAccounting is Ownable {
         returns (bool allocateToEth, uint256 nonSnxAssetValue)
     {
         uint256 setHoldingsInWei = getSetHoldingsValueInWei();
-        
+
         // called before eth transferred from xSNX to xSNXAdmin
-        uint256 ethBalBefore = getEthBalance(); 
+        uint256 ethBalBefore = getEthBalance();
 
         allocateToEth = shouldAllocateEthToEthReserve(
             setHoldingsInWei,

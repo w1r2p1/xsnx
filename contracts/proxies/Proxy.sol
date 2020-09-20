@@ -65,6 +65,7 @@ contract Proxy {
      */
     function proposeNewImplementation(address newImplementation) public onlyProxyAdmin {
         require(newImplementation != address(0), "new proposed implementation cannot be address(0)");
+        require(isContract(newImplementation), "new proposed implementation is not a contract");
         require(newImplementation != implementation(), "new proposed address cannot be the same as the current implementation address");
         setNewAddressAtPosition(PROPOSED_IMPLEMENTATION_POSITION, newImplementation);
     }
@@ -111,6 +112,17 @@ contract Proxy {
         require(proposedNewAdminTimestamp() <= block.timestamp, "admin change can only be submitted after 1 day");
         setProxyAdmin(newAdminAddress);
         setProposedAdmin(address(0)); 
+    }
+
+    /**
+     * @dev Returns whether address is a contract
+     */
+    function isContract(address _addr) private returns (bool isContract){
+        uint32 size;
+        assembly {
+            size := extcodesize(_addr)
+        }
+        return (size > 0);
     }
 
     /**
