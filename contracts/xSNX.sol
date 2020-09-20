@@ -61,7 +61,7 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
     );
 
     struct FeeDivisors {
-        uint256 mintFee; // not charged on mintWithSnx
+        uint256 mintFee;
         uint256 burnFee;
         uint256 claimFee;
     }
@@ -174,7 +174,7 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
 
     function calculateFee(uint256 _value, uint256 _feeDivisor)
         internal
-        view
+        pure
         returns (uint256 fee)
     {
         if (_feeDivisor > 0) {

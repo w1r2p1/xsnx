@@ -117,7 +117,7 @@ contract Proxy {
     /**
      * @dev Returns whether address is a contract
      */
-    function isContract(address _addr) private returns (bool isContract){
+    function isContract(address _addr) private view returns (bool){
         uint32 size;
         assembly {
             size := extcodesize(_addr)

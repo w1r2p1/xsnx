@@ -438,7 +438,11 @@ module.exports = async function(deployer, network, accounts) {
 						SUSD_ADDRESS,
 						xsnxAdminProxyCast.address,
 						OWNER
-					);
+          );
+          
+          await xsnxAdminProxyCast.setXsnxTokenAddress(
+            xsnxProxyCast.address
+          );
 
 					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_1);
 					console.log('xsnx: set asset 1 => transfer proxy approve');

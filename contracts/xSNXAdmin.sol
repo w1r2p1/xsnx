@@ -21,7 +21,7 @@ contract xSNXAdmin is Ownable {
     address private snxAddress;
     address private setTransferProxy;
 
-    address xsnxTokenAddress;
+    address private xsnxTokenAddress;
 
     address private manager;
 
@@ -68,6 +68,11 @@ contract xSNXAdmin is Ownable {
         lastClaimedTimestamp = block.timestamp;
     }
 
+    /*
+     * @notice Function to transfer ETH to token contract on burn
+     * @dev Issues synths on Synthetix
+     * @param valueToSend: token burn redemption value
+     */
     function sendEthOnRedemption(uint256 valueToSend) public onlyTokenContract {
         (bool success, ) = xsnxTokenAddress.call.value(valueToSend)("");
         require(success, "Redeem transfer failed");
