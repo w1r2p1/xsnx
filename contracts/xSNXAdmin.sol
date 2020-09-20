@@ -2,21 +2,18 @@ pragma solidity 0.5.15;
 
 import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20Detailed.sol";
 import "@openzeppelin/upgrades/contracts/Initializable.sol";
 
 import "synthetix/contracts/interfaces/IFeePool.sol";
 
 import "./TradeAccounting.sol";
-import "./helpers/Pausable.sol";
 
 import "./interface/IRebalancingSetIssuanceModule.sol";
 import "./interface/IxSNX.sol";
 
 contract xSNXAdmin is Ownable {
     using SafeMath for uint256;
-    // contract xSNXCore is ERC20, ERC20Detailed, Pausable, Ownable {
+
     address
         private constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address private susdAddress;
@@ -42,35 +39,10 @@ contract xSNXAdmin is Ownable {
     IAddressResolver private addressResolver;
     IRebalancingSetIssuanceModule private rebalancingModule;
 
-    // uint256 public withdrawableEthFees;
-    // uint256 public withdrawableSusdFees;
-
     uint256 public lastClaimedTimestamp;
 
-    // event Mint(
-    //     address indexed user,
-    //     uint256 timestamp,
-    //     uint256 valueSent,
-    //     uint256 mintAmount,
-    //     bool mintWithEth
-    // );
-    // event Burn(
-    //     address indexed user,
-    //     uint256 timestamp,
-    //     uint256 burnAmount,
-    //     uint256 valueToSend
-    // );
-    // event RebalanceToSnx(uint256 timestamp, uint256 setSold);
-    // event RebalanceToHedge(uint256 timestamp, uint256 snxSold);
-    // event WithdrawFees(uint256 ethAmount, uint256 susdAmount);
-
-    // struct FeeDivisors {
-    //     uint256 mintFee; // not charged on mintWithSnx
-    //     uint256 burnFee;
-    //     uint256 claimFee;
-    // }
-
-    // FeeDivisors public feeDivisors;
+    event RebalanceToSnx(uint256 timestamp, uint256 setSold);
+    event RebalanceToHedge(uint256 timestamp, uint256 snxSold);
 
     function initialize(
         address payable _tradeAccountingAddress,
@@ -83,8 +55,6 @@ contract xSNXAdmin is Ownable {
         address _ownerAddress
     ) public initializer {
         Ownable.initialize(_ownerAddress);
-        // ERC20Detailed.initialize("xSNX", "xSNXa", 18);
-        // Pausable.initialize(_ownerAddress);
 
         //Set parameters
         tradeAccounting = TradeAccounting(_tradeAccountingAddress);
@@ -98,103 +68,11 @@ contract xSNXAdmin is Ownable {
         lastClaimedTimestamp = block.timestamp;
     }
 
-    /* ========================================================================================= */
-    /*                                     Investor-facing                                       */
-    /* ========================================================================================= */
-
     function sendEthOnRedemption(uint256 valueToSend) public onlyTokenContract {
         (bool success, ) = xsnxTokenAddress.call.value(valueToSend)("");
         require(success, "Redeem transfer failed");
     }
 
-    /*
-     * @notice Mint new xSNX tokens from the contract by sending ETH
-     * @dev Exchanges ETH for SNX
-     * @dev Min rate ETH/SNX sourced from Kyber in JS
-     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price (via SNX oracle)
-     * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
-     * @param: minRate: kyberProxy.getExpectedRate eth=>snx
-     */
-    // function mint(uint256 minRate) external payable whenNotPaused {
-    //     require(msg.value > 0, "Must send ETH");
-
-    //     uint256 fee = _administerFee(msg.value, feeDivisors.mintFee);
-    //     uint256 ethContribution = msg.value.sub(fee);
-    //     uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
-
-    //     uint256 totalSupply = totalSupply();
-    //     (bool allocateToEth, uint256 nonSnxAssetValue) = tradeAccounting
-    //         .getMintWithEthUtils(ethContribution, totalSupply);
-
-    //     if (!allocateToEth) {
-    //         tradeAccounting.swapEtherToToken.value(ethContribution)(
-    //             snxAddress,
-    //             minRate
-    //         );
-    //     }
-
-    //     uint256 mintAmount = tradeAccounting.calculateTokensToMintWithEth(
-    //         snxBalanceBefore,
-    //         ethContribution,
-    //         nonSnxAssetValue,
-    //         totalSupply,
-    //         allocateToEth
-    //     );
-
-    //     emit Mint(msg.sender, block.timestamp, msg.value, mintAmount, true);
-    //     return super._mint(msg.sender, mintAmount);
-    // }
-
-    // /*
-    //  * @notice Mint new xSNX tokens from the contract by sending SNX
-    //  * @notice Won't run without ERC20 approval
-    //  * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price (via SNX oracle)
-    //  * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
-    //  * @param: snxAmount: SNX to contribute
-    //  */
-    // function mintWithSnx(uint256 snxAmount) external whenNotPaused {
-    //     require(snxAmount > 0, "Must send SNX");
-    //     uint256 snxBalanceBefore = tradeAccounting.getSnxBalance();
-    //     IERC20(snxAddress).transferFrom(msg.sender, address(this), snxAmount);
-
-    //     uint256 mintAmount = tradeAccounting.calculateTokensToMintWithSnx(
-    //         snxBalanceBefore,
-    //         snxAmount,
-    //         totalSupply()
-    //     );
-
-    //     emit Mint(msg.sender, block.timestamp, snxAmount, mintAmount, false);
-    //     return super._mint(msg.sender, mintAmount);
-    // }
-
-    /*
-     * @notice Redeems and burns xSNX tokens and sends ETH to user
-     * @dev Checks if ETH reserve is sufficient to settle redeem obligation
-     * @dev Will only redeem if ETH reserve is sufficient
-     * @param tokensToRedeem
-     */
-    // function burn(uint256 tokensToRedeem) external {
-    //     require(tokensToRedeem > 0, "Must burn tokens");
-
-    //     uint256 valueToRedeem = tradeAccounting.calculateRedemptionValue(
-    //         totalSupply(),
-    //         tokensToRedeem
-    //     );
-
-    //     require(
-    //         tradeAccounting.getEthBalance() > valueToRedeem,
-    //         "Amount exceeds available liquidity"
-    //     );
-
-    //     uint256 valueToSend = valueToRedeem.sub(
-    //         _administerFee(valueToRedeem, feeDivisors.burnFee)
-    //     );
-    //     super._burn(msg.sender, tokensToRedeem);
-    //     emit Burn(msg.sender, block.timestamp, tokensToRedeem, valueToSend);
-
-    //     (bool success, ) = msg.sender.call.value(valueToSend)("");
-    //     require(success, "Burn transfer failed");
-    // }
 
     /* ========================================================================================= */
     /*                                   Fund Management                                         */
@@ -275,14 +153,13 @@ contract xSNXAdmin is Ownable {
 
         IFeePool(addressResolver.getAddress(feePoolName)).claimFees();
 
+        // fee collection
         uint256 feeDivisor = IxSNX(xsnxTokenAddress).getClaimFeeDivisor();
         IERC20(susdAddress).transfer(
             xsnxTokenAddress,
             getSusdBalance().div(feeDivisor)
         );
-        // withdrawableSusdFees = withdrawableSusdFees.add(
-        //     getSusdBalance().div(feeDivisors.claimFee)
-        // );
+
         _swapTokenToEther(
             susdAddress,
             getSusdBalance(),
@@ -356,7 +233,7 @@ contract xSNXAdmin is Ownable {
             0
         );
 
-        // emit RebalanceToSnx(block.timestamp, setToSell);
+        emit RebalanceToSnx(block.timestamp, setToSell);
     }
 
     /*
@@ -387,7 +264,7 @@ contract xSNXAdmin is Ownable {
             minCurveReturns,
             snxToSell
         );
-        // emit RebalanceToHedge(block.timestamp, snxToSell);
+        emit RebalanceToHedge(block.timestamp, snxToSell);
     }
 
     /*
@@ -547,17 +424,6 @@ contract xSNXAdmin is Ownable {
         return tradeAccounting.getSusdBalance();
     }
 
-    // function _administerFee(uint256 _value, uint256 _feeDivisor)
-    //     private
-    //     returns (uint256 fee)
-    // {
-    //     if (_feeDivisor > 0) {
-    //         fee = _value.div(_feeDivisor);
-    //         withdrawableEthFees = withdrawableEthFees.add(fee);
-    //     }
-    // }
-
-    // ADD TO DEPLOYMENT SCRIPT
     function setXsnxTokenAddress(address _xsnxTokenAddress) public onlyOwner {
         if (xsnxTokenAddress == address(0)) {
             xsnxTokenAddress = _xsnxTokenAddress;
@@ -582,46 +448,6 @@ contract xSNXAdmin is Ownable {
         require(msg.sender == xsnxTokenAddress, "Non token caller");
         _;
     }
-
-    /*
-     * @notice Inverse of fee i.e., a fee divisor of 100 == 1%
-     * @notice Three fee types
-     * @notice Mint fee never charged on mintWithSnx
-     * @dev Mint fee 0 or <= 2%
-     * @dev Burn fee 0 or <= 1%
-     * @dev Claim fee 0 <= 4%
-     */
-    // function setFeeDivisors(
-    //     uint256 mintFeeDivisor,
-    //     uint256 burnFeeDivisor,
-    //     uint256 claimFeeDivisor
-    // ) public onlyOwner {
-    //     require(mintFeeDivisor == 0 || mintFeeDivisor >= 50, "Invalid fee");
-    //     require(burnFeeDivisor == 0 || burnFeeDivisor >= 100, "Invalid fee");
-    //     require(claimFeeDivisor >= 25, "Invalid fee");
-    //     feeDivisors.mintFee = mintFeeDivisor;
-    //     feeDivisors.burnFee = burnFeeDivisor;
-    //     feeDivisors.claimFee = claimFeeDivisor;
-    // }
-
-    // function withdrawFees() public onlyOwner {
-    //     // require(
-    //     //     withdrawableEthFees > 0 || withdrawableSusdFees > 0,
-    //     //     "No fees to withdraw"
-    //     // );
-
-    //     uint256 ethFeesToWithdraw = withdrawableEthFees;
-    //     uint256 susdFeesToWithdraw = withdrawableSusdFees;
-    //     withdrawableEthFees = 0;
-    //     withdrawableSusdFees = 0;
-
-    //     (bool success, ) = msg.sender.call.value(ethFeesToWithdraw)("");
-    //     require(success, "Transfer failed");
-
-    //     IERC20(susdAddress).transfer(msg.sender, susdFeesToWithdraw);
-
-    //     // emit WithdrawFees(ethFeesToWithdraw, susdFeesToWithdraw);
-    // }
 
     // approve [setComponentA, setComponentB] on deployment
     function approveSetTransferProxy(address tokenAddress) public onlyOwner {

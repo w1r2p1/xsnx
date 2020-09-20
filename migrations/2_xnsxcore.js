@@ -178,35 +178,37 @@ module.exports = async function(deployer, network, accounts) {
 																															async (
 																																xsnx
 																															) => {
-                                                                let xsnxProxy = await deployer.deploy(
-                                                                  xSNXProxy,
-                                                                  xsnx.address,
-                                                                  admin,
-                                                                  cosigner1,
-                                                                  cosigner2
-                                                                )
-                                                                let xsnxProxyCast = await xSNX.at(
-                                                                  xsnxProxy.address
-                                                                )
-                                                                await xsnxProxyCast.initialize(
-                                                                  taProxyCast.address,
-                                                                  kyberProxy.address,
-                                                                  synthetix.address,
-                                                                  susd.address,
-                                                                  xsnxAdminProxyCast.address,
-                                                                  admin
-                                                                )
+																																let xsnxProxy = await deployer.deploy(
+																																	xSNXProxy,
+																																	xsnx.address,
+																																	admin,
+																																	cosigner1,
+																																	cosigner2
+																																);
+																																let xsnxProxyCast = await xSNX.at(
+																																	xsnxProxy.address
+																																);
+																																await xsnxProxyCast.initialize(
+																																	taProxyCast.address,
+																																	kyberProxy.address,
+																																	synthetix.address,
+																																	susd.address,
+																																	xsnxAdminProxyCast.address,
+																																	admin
+																																);
 
-                                                                await xsnxProxyCast.setFeeDivisors(
-																																  '400',
-																																  '400',
-																																  '40',
-																																)
+																																await xsnxProxyCast.setFeeDivisors(
+																																	'400',
+																																	'400',
+																																	'40'
+																																);
 																																console.log(
-																																  'xsnx: fee divisors set',
-																																)
+																																	'xsnx: fee divisors set'
+																																);
 
-                                                                await xsnxAdminProxyCast.setXsnxTokenAddress(xsnxProxy.address)
+																																await xsnxAdminProxyCast.setXsnxTokenAddress(
+																																	xsnxProxy.address
+																																);
 																																await xsnxAdminProxyCast.approveMock(
 																																	rebalancingModule.address,
 																																	weth.address
@@ -240,7 +242,7 @@ module.exports = async function(deployer, network, accounts) {
 																																await feePool.setSusdAddress(
 																																	susd.address
 																																);
-	
+
 																																await xsnxAdminProxyCast.setSynthetixAddress();
 																																console.log(
 																																	'xsnx: synthetix set'
@@ -366,88 +368,112 @@ module.exports = async function(deployer, network, accounts) {
 		const ADDRESS_VALIDATOR = '0x885583955F14970CbC0046B91297e9915f4DE6E4';
 		//address of the owner role
 		const OWNER = accounts[0];
-		const COSIGNER2 = '<SECOND COSIGNER OF THE PROXIES>';
+		const COSIGNER2 = '0x5314736b4b7778aC25be9afb3819c4ABF4FBEaEA';
 
 		const USDC_CURVE_INDEX = 1;
 		const SUSD_CURVE_INDEX = 3;
 
 		return deployer.deploy(TradeAccounting).then((tradeAccountingImpl) => {
-			return deployer.deploy(xSNXCore).then(async (xsnxImpl) => {
-				console.log('xsnx deployed');
-				let taProxy = await deployer.deploy(
-					TradeAccountingProxy,
-					tradeAccountingImpl.address,
-					OWNER,
-					ADDRESS_VALIDATOR,
-					COSIGNER2
-				);
-				let xsnxProxy = await deployer.deploy(
-					xSNXCoreProxy,
-					xsnxImpl.address,
-					OWNER,
-					ADDRESS_VALIDATOR,
-					COSIGNER2
-				);
+			return deployer.deploy(xSNXAdmin).then(async (xsnxAdminImpl) => {
+				return deployer.deploy(xSNX).then(async (xsnxImpl) => {
+					console.log('tradeAccountingImpl: ', tradeAccountingImpl.address);
+					console.log('xsnxAdminImpl: ', xsnxAdminImpl.address);
+					console.log('xsnxImpl: ', xsnxImpl.address);
+					let taProxy = await deployer.deploy(
+						TradeAccountingProxy,
+						tradeAccountingImpl.address,
+						OWNER,
+						ADDRESS_VALIDATOR,
+						COSIGNER2
+					);
+					let xsnxAdminProxy = await deployer.deploy(
+						xSNXAdminProxy,
+						xsnxAdminImpl.address,
+						OWNER,
+						ADDRESS_VALIDATOR,
+						COSIGNER2
+					);
+					let xsnxProxy = await deployer.deploy(
+						xSNXProxy,
+						xsnxImpl.address,
+						OWNER,
+						ADDRESS_VALIDATOR,
+						COSIGNER2
+					);
+					console.log('taProxy: ', taProxy.address);
+					console.log('xsnxAdminProxy: ', xsnxAdminProxy.address);
+					console.log('xsnxProxy: ', xsnxProxy.address);
 
-				let tradeAccounting = TradeAccounting.at(taProxy.address);
-				tradeAccounting.initialize(
-					SET_ADDRESS,
-					KYBER_PROXY,
-					ADDRESS_RESOLVER,
-					SUSD_ADDRESS,
-					USDC_ADDRESS,
-					ADDRESS_VALIDATOR,
-					SYNTH_SYMBOLS,
-					SET_COMPONENT_ADDRESSES,
-					OWNER
-				);
-				console.log('ta: proxy configured');
-				let xsnx = xSNXCore.at(xsnxProxy.address);
-				xSNXCore.initialize(
-					tradeAccounting.address,
-					SET_ADDRESS,
-					SNX_ADDRESS,
-					SUSD_ADDRESS,
-					SET_TRANSFER_PROXY,
-					ADDRESS_RESOLVER,
-					REBALANCING_MODULE,
-					OWNER
-				);
-				console.log('xsnx: proxy configured');
+					let taProxyCast = await TradeAccounting.at(taProxy.address);
+					await taProxyCast.initialize(
+						SET_ADDRESS,
+						KYBER_PROXY,
+						ADDRESS_RESOLVER,
+						SUSD_ADDRESS,
+						USDC_ADDRESS,
+						ADDRESS_VALIDATOR,
+						SYNTH_SYMBOLS,
+						SET_COMPONENT_ADDRESSES,
+						OWNER
+					);
+					console.log('ta: proxy configured');
+					let xsnxAdminProxyCast = await xSNXAdmin.at(xsnxAdminProxy.address);
+					await xsnxAdminProxyCast.initialize(
+						taProxyCast.address,
+						SET_ADDRESS,
+						SNX_ADDRESS,
+						SUSD_ADDRESS,
+						SET_TRANSFER_PROXY,
+						ADDRESS_RESOLVER,
+						REBALANCING_MODULE,
+						OWNER
+					);
+					console.log('xsnxAdmin: proxy configured');
 
-				await xsnx.approveSetTransferProxy(SET_ASSET_1);
-				console.log('xsnx: set asset 1 => transfer proxy approve');
-				await xsnx.approveSetTransferProxy(SET_ASSET_2);
-				console.log('xsnx: set asset 2 => transfer proxy approve');
+					let xsnxProxyCast = await xSNX.at(xsnxProxy.address);
+					await xsnxProxyCast.initialize(
+						taProxyCast.address,
+						KYBER_PROXY,
+						SNX_ADDRESS,
+						SUSD_ADDRESS,
+						xsnxAdminProxyCast.address,
+						OWNER
+					);
 
-				await xsnx.setFeeDivisors('500', '500', '100');
-				console.log('xsnx: fee divisors set');
+					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_1);
+					console.log('xsnx: set asset 1 => transfer proxy approve');
+					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_2);
+					console.log('xsnx: set asset 2 => transfer proxy approve');
 
-				await xsnx.setSynthetixAddress();
-				console.log('xsnx: synthetix set');
+					await xsnxProxyCast.setFeeDivisors('500', '500', '100');
+					console.log('xsnx: fee divisors set');
 
-				await tradeAccounting.setInstanceAddress(xsnx.address);
-				console.log('ta: xsnx address set');
+					await xsnxAdminProxyCast.setSynthetixAddress();
+					console.log('xsnx: synthetix set');
 
-				await tradeAccounting.setSynthetixAddress();
-				console.log('ta: synthetix set');
-				await tradeAccounting.setSynthetixStateAddress();
-				console.log('ta: synth state set');
-				await tradeAccounting.setCurve(CURVE_POOL, USDC_CURVE_INDEX, SUSD_CURVE_INDEX);
-				console.log('ta: curve set');
+					await taProxyCast.setAdminInstanceAddress(xsnxAdminProxyCast.address);
+					console.log('ta: xsnx address set');
 
-				await tradeAccounting.approveKyber(SNX_ADDRESS);
-				console.log('ta: approve kyber: snx');
-				await tradeAccounting.approveKyber(SET_ASSET_1);
-				console.log('ta: approve kyber: set asset 1');
-				await tradeAccounting.approveKyber(SET_ASSET_2);
-				console.log('ta: approve kyber: set asset 2');
-				await tradeAccounting.approveKyber(USDC_ADDRESS); // unnecessary for USDC-Sets
-				console.log('ta: approve kyber: usdc');
-				await tradeAccounting.approveCurve(SUSD_ADDRESS);
-				console.log('ta: approve curve: susd');
-				await tradeAccounting.approveCurve(USDC_ADDRESS);
-				console.log('ta: approve curve: usdc');
+					await taProxyCast.setSynthetixAddress();
+					console.log('ta: synthetix set');
+					await taProxyCast.setSynthetixStateAddress();
+					console.log('ta: synth state set');
+					await taProxyCast.setCurve(CURVE_POOL, USDC_CURVE_INDEX, SUSD_CURVE_INDEX);
+					console.log('ta: curve set');
+
+					await taProxyCast.approveKyber(SNX_ADDRESS);
+					console.log('ta: approve kyber: snx');
+					await taProxyCast.approveKyber(SET_ASSET_1);
+					console.log('ta: approve kyber: set asset 1');
+					await taProxyCast.approveKyber(SET_ASSET_2);
+					console.log('ta: approve kyber: set asset 2');
+					await taProxyCast.approveKyber(USDC_ADDRESS); // unnecessary for USDC-Sets
+					console.log('ta: approve kyber: usdc');
+					await taProxyCast.approveCurve(SUSD_ADDRESS);
+					console.log('ta: approve curve: susd');
+					await taProxyCast.approveCurve(USDC_ADDRESS);
+					console.log('ta: approve curve: usdc');
+				});
 			});
 		});
 	}

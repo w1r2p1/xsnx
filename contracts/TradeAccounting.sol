@@ -12,7 +12,6 @@ import "synthetix/contracts/interfaces/IExchangeRates.sol";
 import "synthetix/contracts/interfaces/ISynthetixState.sol";
 import "synthetix/contracts/interfaces/IAddressResolver.sol";
 
-// import "./interface/IxSNXCore.sol";
 import "./interface/ISystemSettings.sol";
 
 import "./interface/ICurveFi.sol";
@@ -142,23 +141,8 @@ contract TradeAccounting is Ownable {
     }
 
     /* ========================================================================================= */
-    /*                                         Kyber                                             */
+    /*                                         Kyber/Curve                                             */
     /* ========================================================================================= */
-
-    // function swapEtherToToken(address toToken, uint256 minConversionRate)
-    //     public
-    //     payable
-    //     onlyXSNX
-    // {
-    //     kyberNetworkProxy.swapEtherToToken.value(msg.value)(
-    //         ERC20(toToken),
-    //         minConversionRate
-    //     );
-    //     IERC20(toToken).transfer(
-    //         xSNXInstance,
-    //         IERC20(toToken).balanceOf(address(this))
-    //     );
-    // }
 
     function swapTokenToToken(
         address fromToken,
@@ -260,10 +244,7 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
 
     function getEthBalance() public view returns (uint256) {
-        // uint256 withdrawableFees = IxSNXCore(xSNXAdminInstance)
-        //     .withdrawableEthFees();
-        return address(xSNXAdminInstance).balance; // eth fees now held in token
-        // return address(xSNXAdminInstance).balance.sub(withdrawableFees);
+        return address(xSNXAdminInstance).balance;
     }
 
     // eth terms
@@ -283,14 +264,15 @@ contract TradeAccounting is Ownable {
         valueToRedeem = pricePerToken.mul(tokensToRedeem).div(DEC_18);
     }
 
-    function getMintWithEthUtils(uint256 ethContribution, uint256 totalSupply)
+    function getMintWithEthUtils(uint256 totalSupply)
         public
         view
         returns (bool allocateToEth, uint256 nonSnxAssetValue)
     {
         uint256 setHoldingsInWei = getSetHoldingsValueInWei();
-        uint256 ethBalBefore = getEthBalance();
-        // uint256 ethBalBefore = getEthBalance().sub(ethContribution);
+        
+        // called before eth transferred from xSNX to xSNXAdmin
+        uint256 ethBalBefore = getEthBalance(); 
 
         allocateToEth = shouldAllocateEthToEthReserve(
             setHoldingsInWei,
@@ -652,11 +634,7 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
 
     function getSusdBalance() public view returns (uint256) {
-        // **fees now transferred to token contract
         return IERC20(susdAddress).balanceOf(xSNXAdminInstance);
-        // uint256 susdBal = IERC20(susdAddress).balanceOf(xSNXAdminInstance);
-        // uint256 susdFees = IxSNXCore(xSNXInstance).withdrawableSusdFees();
-        // return susdBal.sub(susdFees);
     }
 
     function getSnxBalance() public view returns (uint256) {

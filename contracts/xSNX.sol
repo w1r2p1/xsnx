@@ -85,7 +85,7 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
 
         uint256 totalSupply = totalSupply();
         (bool allocateToEth, uint256 nonSnxAssetValue) = tradeAccounting
-            .getMintWithEthUtils(ethContribution, totalSupply);
+            .getMintWithEthUtils(totalSupply);
 
         if (!allocateToEth) {
             uint256 snxAcquired = kyberNetworkProxy.swapEtherToToken.value(
@@ -157,7 +157,7 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
         );
 
         require(
-            tradeAccounting.getEthBalance() > valueToRedeem,
+            tradeAccounting.getEthBalance() >= valueToRedeem,
             "Redeem amount exceeds available liquidity"
         );
 
