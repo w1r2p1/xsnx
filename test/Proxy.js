@@ -13,13 +13,13 @@ contract('Proxy', (accounts) => {
 	const nonPrivilegedRole = accounts[9];
 
 	beforeEach(async () => {
-        testImplContract = await xSNXAdmin.new()
-        testImplAddress = testImplContract.address
-        incorrectImpl = await ERC20.new() 
-        incorrectImplAddress = incorrectImpl.address
-        futureImpl = await ERC20.new()
-        futureImplAddress = futureImpl.address
-        testProxy = await xSNXAdminProxy.new(testImplAddress, admin, cosigner1, cosigner2);
+		testImplContract = await xSNXAdmin.new();
+		testImplAddress = testImplContract.address;
+		incorrectImpl = await ERC20.new();
+		incorrectImplAddress = incorrectImpl.address;
+		futureImpl = await ERC20.new();
+		futureImplAddress = futureImpl.address;
+		testProxy = await xSNXAdminProxy.new(testImplAddress, admin, cosigner1, cosigner2);
 	});
 
 	describe('Proxy Values', async () => {
@@ -32,9 +32,9 @@ contract('Proxy', (accounts) => {
 	});
 
 	describe('Changing the implementation contract', async () => {
-        it('should not let admin propose a non-contract address as new implementation', async() => {
-            truffleAssert.reverts(testProxy.proposeNewImplementation(nonPrivilegedRole, { from: admin }));
-        })
+		it('should not let admin propose a non-contract address as new implementation', async () => {
+			truffleAssert.reverts(testProxy.proposeNewImplementation(nonPrivilegedRole, { from: admin }));
+		});
 
 		it('Should not let non-admins propose new implementations', async () => {
 			truffleAssert.reverts(testProxy.proposeNewImplementation(futureImplAddress, { from: cosigner1 }));
