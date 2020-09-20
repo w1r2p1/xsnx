@@ -37,9 +37,10 @@ contract MockKyberProxy {
 
         if(src == ERC20(wethAddress) && dest == ERC20(susdAddress)) return (200e18, 200e18);
     }
-    function swapEtherToToken(ERC20 token, uint minConversionRate) external payable returns(uint) {
+    function swapEtherToToken(ERC20 token, uint minConversionRate) external payable returns(uint amountToSend) {
         if(token == ERC20(snxAddress)){
-            IERC20(snxAddress).transfer(msg.sender, msg.value.mul(ethSnx));
+            amountToSend = msg.value.mul(ethSnx);
+            IERC20(snxAddress).transfer(msg.sender, amountToSend);
         }
     }
     function swapTokenToEther(ERC20 token, uint tokenQty, uint minRate) external payable returns(uint) {

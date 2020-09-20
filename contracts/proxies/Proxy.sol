@@ -43,7 +43,7 @@ contract Proxy {
         address signer2
     ) public {
         require(
-            proxyAdmin != address(0),
+            implementation != address(0),
             "Invalid implementation address provided"
         );
         require(
@@ -65,12 +65,13 @@ contract Proxy {
      */
     function proposeNewImplementation(address newImplementation) public onlyProxyAdmin {
         require(newImplementation != address(0), "new proposed implementation cannot be address(0)");
+        require(isContract(newImplementation), "new proposed implementation is not a contract");
         require(newImplementation != implementation(), "new proposed address cannot be the same as the current implementation address");
         setNewAddressAtPosition(PROPOSED_IMPLEMENTATION_POSITION, newImplementation);
     }
 
     /**
-     * @dev Comfirms a previously proposed implementation if the sender is one of the two cosigners
+     * @dev Confirms a previously proposed implementation if the sender is one of the two cosigners
      * @param confirmedImplementation the address of previously proposed implementation (has to match the previously proposed implementation)
      */
     function confirmImplementation(address confirmedImplementation)
@@ -111,6 +112,17 @@ contract Proxy {
         require(proposedNewAdminTimestamp() <= block.timestamp, "admin change can only be submitted after 1 day");
         setProxyAdmin(newAdminAddress);
         setProposedAdmin(address(0)); 
+    }
+
+    /**
+     * @dev Returns whether address is a contract
+     */
+    function isContract(address _addr) private view returns (bool){
+        uint32 size;
+        assembly {
+            size := extcodesize(_addr)
+        }
+        return (size > 0);
     }
 
     /**

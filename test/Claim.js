@@ -1,8 +1,9 @@
 const { BN } = require('@openzeppelin/test-helpers')
 const truffleAssert = require('truffle-assertions')
 const { assertBNEqual, BN_ZERO, DEC_18, bn, increaseTime, FOUR_DAYS } = require('./utils')
-const xSNXCore = artifacts.require('ExtXC')
-const ExtTradeAccounting = artifacts.require('ExtTA')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
+const TradeAccounting = artifacts.require('ExtTA')
 const MockSUSD = artifacts.require('MockSUSD')
 const MockUSDC = artifacts.require('MockUSDC')
 const MockFeePool = artifacts.require('MockFeePool')
@@ -16,7 +17,8 @@ const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
 const MockRewardEscrow = artifacts.require('MockRewardEscrow')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Claim', async (accounts) => {
@@ -24,9 +26,11 @@ contract('xSNXCore: Claim', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
-    tradeAccounting = await ExtTradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
+    tradeAccounting = await TradeAccounting.at(taProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
     
     feePool = await MockFeePool.deployed()
     susd = await MockSUSD.deployed()
@@ -49,7 +53,7 @@ contract('xSNXCore: Claim', async (accounts) => {
   describe('Claiming fees/rewards', async (accounts) => {
     it('should revert if called from non owner', async () => {
       await truffleAssert.reverts(
-        xsnx.claim(0, [0, 0], [0, 0], true, { from: account1 }),
+        xsnxAdmin.claim(0, [0, 0], [0, 0], true, { from: account1 }),
         'Non-admin caller',
       )
     })
@@ -62,14 +66,14 @@ contract('xSNXCore: Claim', async (accounts) => {
       })
       await susd.transfer(curve.address, web3.utils.toWei('100'))
       await usdc.transfer(curve.address, '100000000')
-      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
-      const withdrawableSusdFees = await xsnx.withdrawableSusdFees()
+      await xsnxAdmin.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
+      const withdrawableSusdFees = await susd.balanceOf(xsnx.address)
       assertBNEqual(withdrawableSusdFees.gt(BN_ZERO), true)
     })
 
     it('should exchange sUSD for ETH on successful claim', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
-      await xsnx.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
+      await xsnxAdmin.claim(0, [0, 0], [0, 0], true, { from: deployerAccount })
       const ethBalAfter = await tradeAccounting.getEthBalance()
       assertBNEqual(ethBalAfter.gt(ethBalBefore), true)
     })
@@ -95,20 +99,22 @@ contract('xSNXCore: Claim', async (accounts) => {
       const ethAllocation = await tradeAccounting.getEthAllocationOnHedge(
         amountSusd,
       )
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
         ethAllocation,
       )
 
-      await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.02'))
+      await synthetix.addDebt(xsnxAdmin.address, web3.utils.toWei('0.02'))
       const debtBefore = await tradeAccounting.extGetContractDebtValue()
+      
+      const snxBal = await tradeAccounting.getSnxBalance()
       
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
       assertBNEqual(susdToBurnCollat.gt(BN_ZERO), true) // i.e., fees should be unclaimable until susd burn
  
-      await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
+      await xsnxAdmin.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
         from: deployerAccount,
       })
       
@@ -125,13 +131,13 @@ contract('xSNXCore: Claim', async (accounts) => {
     it('should fix c-ratio before claiming if collateralization is below (w/ escrowed bal)', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
       await rewardEscrow.setBalance(web3.utils.toWei('1'))
-      await synthetix.addDebt(xsnx.address, web3.utils.toWei('0.2'))
+      await synthetix.addDebt(xsnxAdmin.address, web3.utils.toWei('0.2'))
       const debtBefore = await tradeAccounting.extGetContractDebtValue()
 
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
       assertBNEqual(susdToBurnCollat.gt(BN_ZERO), true) // i.e., fees should be unclaimable until susd burn
 
-      await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
+      await xsnxAdmin.claim(susdToBurnCollat, [0, 0], [0, 0], false, {
         from: deployerAccount,
       })
 
@@ -159,7 +165,7 @@ contract('xSNXCore: Claim', async (accounts) => {
       await xsnx.mint(0, { value: web3.utils.toWei('0.01') })
       const snxValueHeld = await tradeAccounting.extGetContractSnxValue()
       const debtBalance = await synthetix.debtBalanceOf(
-        xsnx.address,
+        xsnxAdmin.address,
         web3.utils.fromAscii('sUSD'),
       )
       const amountSusd = bn(snxValueHeld).div(bn(8)).sub(bn(debtBalance))
@@ -167,7 +173,7 @@ contract('xSNXCore: Claim', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
@@ -177,7 +183,7 @@ contract('xSNXCore: Claim', async (accounts) => {
       const susdToBurnCollat = await tradeAccounting.calculateSusdToBurnToFixRatioExternal()
       assertBNEqual(susdToBurnCollat, BN_ZERO)
 
-      await xsnx.claim(susdToBurnCollat, [0, 0], [0, 0], true, {
+      await xsnxAdmin.claim(susdToBurnCollat, [0, 0], [0, 0], true, {
         from: deployerAccount,
       })
 

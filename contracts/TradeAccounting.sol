@@ -12,7 +12,6 @@ import "synthetix/contracts/interfaces/IExchangeRates.sol";
 import "synthetix/contracts/interfaces/ISynthetixState.sol";
 import "synthetix/contracts/interfaces/IAddressResolver.sol";
 
-import "./interface/IxSNXCore.sol";
 import "./interface/ISystemSettings.sol";
 
 import "./interface/ICurveFi.sol";
@@ -93,7 +92,7 @@ contract TradeAccounting is Ownable {
     IAddressResolver private addressResolver;
     IKyberNetworkProxy private kyberNetworkProxy;
 
-    address private xSNXInstance;
+    address private xSNXAdminInstance;
     address private addressValidator;
 
     address private setAddress;
@@ -133,29 +132,17 @@ contract TradeAccounting is Ownable {
         setComponentAddresses = _setComponentAddresses;
     }
 
-    modifier onlyXSNX {
-        require(msg.sender == xSNXInstance, "Only xSNX contract can call");
+    modifier onlyXSNXAdmin {
+        require(
+            msg.sender == xSNXAdminInstance,
+            "Only xSNXAdmin contract can call"
+        );
         _;
     }
 
     /* ========================================================================================= */
-    /*                                         Kyber                                             */
+    /*                                         Kyber/Curve                                             */
     /* ========================================================================================= */
-
-    function swapEtherToToken(address toToken, uint256 minConversionRate)
-        public
-        payable
-        onlyXSNX
-    {
-        kyberNetworkProxy.swapEtherToToken.value(msg.value)(
-            ERC20(toToken),
-            minConversionRate
-        );
-        IERC20(toToken).transfer(
-            xSNXInstance,
-            IERC20(toToken).balanceOf(address(this))
-        );
-    }
 
     function swapTokenToToken(
         address fromToken,
@@ -163,7 +150,7 @@ contract TradeAccounting is Ownable {
         address toToken,
         uint256 minKyberRate,
         uint256 minCurveReturn
-    ) public onlyXSNX {
+    ) public onlyXSNXAdmin {
         if (fromToken == susdAddress) {
             _exchangeUnderlying(susdIndex, usdcIndex, amount, minCurveReturn);
 
@@ -183,7 +170,7 @@ contract TradeAccounting is Ownable {
         }
 
         IERC20(toToken).transfer(
-            xSNXInstance,
+            xSNXAdminInstance,
             IERC20(toToken).balanceOf(address(this))
         );
     }
@@ -207,7 +194,7 @@ contract TradeAccounting is Ownable {
         uint256 amount,
         uint256 minKyberRate,
         uint256 minCurveReturn
-    ) public onlyXSNX {
+    ) public onlyXSNXAdmin {
         if (fromToken == susdAddress) {
             _exchangeUnderlying(susdIndex, usdcIndex, amount, minCurveReturn);
 
@@ -257,9 +244,7 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
 
     function getEthBalance() public view returns (uint256) {
-        uint256 withdrawableFees = IxSNXCore(xSNXInstance)
-            .withdrawableEthFees();
-        return address(xSNXInstance).balance.sub(withdrawableFees);
+        return address(xSNXAdminInstance).balance;
     }
 
     // eth terms
@@ -279,13 +264,15 @@ contract TradeAccounting is Ownable {
         valueToRedeem = pricePerToken.mul(tokensToRedeem).div(DEC_18);
     }
 
-    function getMintWithEthUtils(uint256 ethContribution, uint256 totalSupply)
+    function getMintWithEthUtils(uint256 totalSupply)
         public
         view
         returns (bool allocateToEth, uint256 nonSnxAssetValue)
     {
         uint256 setHoldingsInWei = getSetHoldingsValueInWei();
-        uint256 ethBalBefore = getEthBalance().sub(ethContribution);
+
+        // called before eth transferred from xSNX to xSNXAdmin
+        uint256 ethBalBefore = getEthBalance();
 
         allocateToEth = shouldAllocateEthToEthReserve(
             setHoldingsInWei,
@@ -382,7 +369,7 @@ contract TradeAccounting is Ownable {
 
     function getInitialSupply() internal view returns (uint256) {
         return
-            IERC20(address(synthetix)).balanceOf(xSNXInstance).mul(
+            IERC20(address(synthetix)).balanceOf(xSNXAdminInstance).mul(
                 INITIAL_SUPPLY_MULTIPLIER
             );
     }
@@ -480,7 +467,8 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
 
     function getActiveSetAssetBalance() public view returns (uint256) {
-        return IERC20(getAssetCurrentlyActiveInSet()).balanceOf(xSNXInstance);
+        return
+            IERC20(getAssetCurrentlyActiveInSet()).balanceOf(xSNXAdminInstance);
     }
 
     function calculateSetQuantity(uint256 componentQuantity)
@@ -634,7 +622,7 @@ contract TradeAccounting is Ownable {
     }
 
     function getContractSetBalance() internal view returns (uint256) {
-        return IERC20(setAddress).balanceOf(xSNXInstance);
+        return IERC20(setAddress).balanceOf(xSNXAdminInstance);
     }
 
     function getBaseSetComponentUnits() internal view returns (uint256) {
@@ -646,9 +634,7 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
 
     function getSusdBalance() public view returns (uint256) {
-        uint256 susdBal = IERC20(susdAddress).balanceOf(xSNXInstance);
-        uint256 susdFees = IxSNXCore(xSNXInstance).withdrawableSusdFees();
-        return susdBal.sub(susdFees);
+        return IERC20(susdAddress).balanceOf(xSNXAdminInstance);
     }
 
     function getSnxBalance() public view returns (uint256) {
@@ -656,13 +642,13 @@ contract TradeAccounting is Ownable {
     }
 
     function getSnxBalanceOwned() internal view returns (uint256) {
-        return IERC20(address(synthetix)).balanceOf(xSNXInstance);
+        return IERC20(address(synthetix)).balanceOf(xSNXAdminInstance);
     }
 
     function getSnxBalanceEscrowed() internal view returns (uint256) {
         return
             IRewardEscrow(addressResolver.getAddress(rewardEscrowName))
-                .balanceOf(xSNXInstance);
+                .balanceOf(xSNXAdminInstance);
     }
 
     function getContractEscrowedSnxValue() internal view returns (uint256) {
@@ -703,12 +689,14 @@ contract TradeAccounting is Ownable {
     }
 
     function getContractDebtValue() internal view returns (uint256) {
-        return synthetix.debtBalanceOf(xSNXInstance, susd);
+        return synthetix.debtBalanceOf(xSNXAdminInstance, susd);
     }
 
     // returns inverse of target C-RATIO
     function getIssuanceRatio() internal view returns (uint256) {
-        return ISystemSettings(addressResolver.getAddress(systemSettingsName)).issuanceRatio();
+        return
+            ISystemSettings(addressResolver.getAddress(systemSettingsName))
+                .issuanceRatio();
     }
 
     // usd terms
@@ -1010,9 +998,12 @@ contract TradeAccounting is Ownable {
         synthetix = ISynthetix(synthetixAddress);
     }
 
-    function setInstanceAddress(address _xSNXInstance) public onlyOwner {
-        if (xSNXInstance == address(0)) {
-            xSNXInstance = _xSNXInstance;
+    function setAdminInstanceAddress(address _xSNXAdminInstance)
+        public
+        onlyOwner
+    {
+        if (xSNXAdminInstance == address(0)) {
+            xSNXAdminInstance = _xSNXAdminInstance;
         }
     }
 

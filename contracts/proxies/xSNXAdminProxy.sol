@@ -2,7 +2,7 @@ pragma solidity 0.5.15;
 
 import './Proxy.sol';
 
-contract xSNXCoreProxy is Proxy {
+contract xSNXAdminProxy is Proxy {
     constructor(
         address implementation,
         address proxyAdmin,

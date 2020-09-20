@@ -1,6 +1,7 @@
 const { assertBNEqual, BN_ZERO, bn, DEC_18 } = require('./utils')
 const truffleAssert = require('truffle-assertions')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
@@ -12,7 +13,8 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Rebalance to SNX', async (accounts) => {
@@ -20,10 +22,12 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
-    
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
+
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
     setToken = await MockSetToken.deployed()
@@ -58,19 +62,19 @@ contract('xSNXCore: Rebalance to SNX', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
         ethAllocation,
       )
 
-      await setToken.transfer(xsnx.address, web3.utils.toWei('0.005'))
+      await setToken.transfer(xsnxAdmin.address, web3.utils.toWei('0.005'))
 
       const isRequired = await tradeAccounting.isRebalanceTowardsSnxRequired()
       assert.equal(isRequired, true)
 
-      await xsnx.rebalanceTowardsSnx('0')
+      await xsnxAdmin.rebalanceTowardsSnx('0')
 
       const isRequiredAfter = await tradeAccounting.isRebalanceTowardsSnxRequired()
       assert.equal(isRequiredAfter, false)

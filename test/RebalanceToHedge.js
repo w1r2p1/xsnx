@@ -1,6 +1,7 @@
 const { assertBNEqual, BN_ZERO, bn, DEC_18, increaseTime, FOUR_DAYS } = require('./utils')
 const truffleAssert = require('truffle-assertions')
-const xSNXCore = artifacts.require('ExtXC')
+const xSNX = artifacts.require('xSNX')
+const xSNXAdmin = artifacts.require('ExtXAdmin')
 const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockSetToken = artifacts.require('MockSetToken')
@@ -12,7 +13,8 @@ const MockRewardEscrow = artifacts.require('MockRewardEscrow')
 const MockKyberProxy = artifacts.require('MockKyberProxy')
 const MockExchangeRates = artifacts.require('MockExchangeRates')
 const MockCurveFi = artifacts.require('MockCurveFi')
-const xSNXCoreProxy = artifacts.require('xSNXCoreProxy')
+const xSNXProxy = artifacts.require('xSNXProxy')
+const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
 
 contract('xSNXCore: Rebalances', async (accounts) => {
@@ -20,9 +22,11 @@ contract('xSNXCore: Rebalances', async (accounts) => {
 
   beforeEach(async () => {
     taProxy = await TradeAccountingProxy.deployed()
-    xsnxProxy = await xSNXCoreProxy.deployed()
+    xsnxAdminProxy = await xSNXAdminProxy.deployed()
+    xsnxProxy = await xSNXProxy.deployed()
     tradeAccounting = await TradeAccounting.at(taProxy.address)
-    xsnx = await xSNXCore.at(xsnxProxy.address)
+    xsnxAdmin = await xSNXAdmin.at(xsnxAdminProxy.address)
+    xsnx = await xSNX.at(xsnxProxy.address)
 
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
@@ -58,7 +62,7 @@ contract('xSNXCore: Rebalances', async (accounts) => {
         amountSusd,
       )
 
-      await xsnx.hedge(
+      await xsnxAdmin.hedge(
         amountSusd,
         ['0', '0'],
         ['0', '0'],
@@ -66,7 +70,7 @@ contract('xSNXCore: Rebalances', async (accounts) => {
       )
 
       const debtValueBefore = await tradeAccounting.extGetContractDebtValue()
-      await synthetix.addDebt(xsnx.address, bn(debtValueBefore).div(bn(16))) // enough to get over rebalance threshold
+      await synthetix.addDebt(xsnxAdmin.address, bn(debtValueBefore).div(bn(16))) // enough to get over rebalance threshold
 
       const debtValue = await tradeAccounting.extGetContractDebtValue()
       const issuanceRatio = await tradeAccounting.extGetIssuanceRatio()
@@ -106,7 +110,7 @@ contract('xSNXCore: Rebalances', async (accounts) => {
       assert.equal(isRequired, true)
 
       const rebalanceVals = await tradeAccounting.getRebalanceTowardsHedgeUtils()
-      await xsnx.rebalanceTowardsHedge(
+      await xsnxAdmin.rebalanceTowardsHedge(
         rebalanceVals[0], // susdToBurn
         [0, 0],
         [0, 0],
