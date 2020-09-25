@@ -109,6 +109,12 @@ contract TradeAccounting is Ownable {
 
     address[2] setComponentAddresses;
 
+    bytes32 constant rewardEscrowName = "RewardEscrow";
+    bytes32 constant synthetixStateName = "SynthetixState";
+    bytes32 constant exchangeRatesName = "ExchangeRates";
+    bytes32 constant synthetixName = "Synthetix";
+    bytes32 constant systemSettingsName = "SystemSettings";
+
     function initialize(
         address _setAddress,
         address _kyberProxyAddress,
@@ -979,12 +985,6 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
     /*                                     Address Setters                                       */
     /* ========================================================================================= */
-
-    bytes32 constant rewardEscrowName = "RewardEscrow";
-    bytes32 constant synthetixStateName = "SynthetixState";
-    bytes32 constant exchangeRatesName = "ExchangeRates";
-    bytes32 constant synthetixName = "Synthetix";
-    bytes32 constant systemSettingsName = "SystemSettings";
 
     function setSynthetixStateAddress() public {
         address synthetixStateAddress = addressResolver.getAddress(
