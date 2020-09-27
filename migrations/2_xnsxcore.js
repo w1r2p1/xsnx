@@ -130,6 +130,7 @@ module.exports = async function(deployer, network, accounts) {
 																											taProxy.address
 																										);
 																										await taProxyCast.initialize(
+																											synthetix.address,
 																											setToken.address,
 																											kyberProxy.address,
 																											addressResolver.address,
@@ -243,27 +244,11 @@ module.exports = async function(deployer, network, accounts) {
 																																	susd.address
 																																);
 
-																																await xsnxAdminProxyCast.setSynthetixAddress();
-																																console.log(
-																																	'xsnx: synthetix set'
-																																);
-
 																																await taProxyCast.setAdminInstanceAddress(
 																																	xsnxAdminProxyCast.address
 																																);
 																																console.log(
 																																	'ta: caller address set'
-																																);
-
-																																await taProxyCast.setSynthetixAddress();
-
-																																console.log(
-																																	'ta: synthetix set'
-																																);
-																																await taProxyCast.setSynthetixStateAddress();
-
-																																console.log(
-																																	'ta: synth state set'
 																																);
 
 																																await taProxyCast.approveKyber(
@@ -406,6 +391,7 @@ module.exports = async function(deployer, network, accounts) {
 
 					let taProxyCast = await TradeAccounting.at(taProxy.address);
 					await taProxyCast.initialize(
+						SNX_ADDRESS,
 						SET_ADDRESS,
 						KYBER_PROXY,
 						ADDRESS_RESOLVER,
@@ -438,11 +424,9 @@ module.exports = async function(deployer, network, accounts) {
 						SUSD_ADDRESS,
 						xsnxAdminProxyCast.address,
 						OWNER
-          );
-          
-          await xsnxAdminProxyCast.setXsnxTokenAddress(
-            xsnxProxyCast.address
-          );
+					);
+
+					await xsnxAdminProxyCast.setXsnxTokenAddress(xsnxProxyCast.address);
 
 					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_1);
 					console.log('xsnx: set asset 1 => transfer proxy approve');
@@ -452,16 +436,9 @@ module.exports = async function(deployer, network, accounts) {
 					await xsnxProxyCast.setFeeDivisors('500', '500', '100');
 					console.log('xsnx: fee divisors set');
 
-					await xsnxAdminProxyCast.setSynthetixAddress();
-					console.log('xsnx: synthetix set');
-
 					await taProxyCast.setAdminInstanceAddress(xsnxAdminProxyCast.address);
 					console.log('ta: xsnx address set');
 
-					await taProxyCast.setSynthetixAddress();
-					console.log('ta: synthetix set');
-					await taProxyCast.setSynthetixStateAddress();
-					console.log('ta: synth state set');
 					await taProxyCast.setCurve(CURVE_POOL, USDC_CURVE_INDEX, SUSD_CURVE_INDEX);
 					console.log('ta: curve set');
 

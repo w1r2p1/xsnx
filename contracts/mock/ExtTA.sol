@@ -4,6 +4,7 @@ import "../TradeAccounting.sol";
 
 contract ExtTA is TradeAccounting {
     function initialize(
+        address snxAddress, 
         address setAddress, 
         address kyberProxyAddress, 
         address addressResolverAddress, 
@@ -15,6 +16,7 @@ contract ExtTA is TradeAccounting {
         address ownerAddress
     ) public initializer {
         TradeAccounting.initialize(
+            snxAddress, 
             setAddress, 
             kyberProxyAddress, 
             addressResolverAddress,
