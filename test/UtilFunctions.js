@@ -258,15 +258,13 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async (accounts
 		it('should be able to retrieve xSNX tokens from xSNX contract', async() => {
 			await xsnx.mint(0, { value: web3.utils.toWei('0.01') });
 			const xsnxBal = await xsnx.balanceOf(deployer)
-			console.log('xsnxBal', xsnxBal.toString())
 			await xsnx.transfer(xsnx.address, xsnxBal)
 			const xsnxXsnxBal = await xsnx.balanceOf(xsnx.address)
-			console.log('xsnxXsnxBal', xsnxXsnxBal.toString())
 			assertBNEqual(xsnxXsnxBal, xsnxBal)
 			
-			// await xsnx.withdrawNativeToken()
-			// const xsnxXsnxBalAfter = await xsnx.balanceOf(xsnx.address)
-			// assertBNEqual(xsnxXsnxBalAfter, bn(0))
+			await xsnx.withdrawNativeToken()
+			const xsnxXsnxBalAfter = await xsnx.balanceOf(xsnx.address)
+			assertBNEqual(xsnxXsnxBalAfter, bn(0))
 		})
 
 	})

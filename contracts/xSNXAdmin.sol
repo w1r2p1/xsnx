@@ -226,7 +226,7 @@ contract xSNXAdmin is Ownable {
     function rebalanceTowardsSnx(uint256 minRate) external onlyOwnerOrManager {
         require(
             tradeAccounting.isRebalanceTowardsSnxRequired(),
-            "Rebalance unnnecessary"
+            "Rebalance unnecessary"
         );
         (uint256 setToSell, address activeAsset) = tradeAccounting
             .getRebalanceTowardsSnxUtils();

@@ -230,7 +230,7 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
     function withdrawNativeToken() public onlyOwner {
         uint256 tokenBal = balanceOf(address(this));
         if (tokenBal > 0) {
-            transfer(msg.sender, tokenBal);
+            IERC20(address(this)).transfer(msg.sender, tokenBal);
         }
     }
 
