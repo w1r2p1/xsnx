@@ -243,27 +243,11 @@ module.exports = async function(deployer, network, accounts) {
 																																	susd.address
 																																);
 
-																																await xsnxAdminProxyCast.setSynthetixAddress();
-																																console.log(
-																																	'xsnx: synthetix set'
-																																);
-
 																																await taProxyCast.setAdminInstanceAddress(
 																																	xsnxAdminProxyCast.address
 																																);
 																																console.log(
 																																	'ta: caller address set'
-																																);
-
-																																await taProxyCast.setSynthetixAddress();
-
-																																console.log(
-																																	'ta: synthetix set'
-																																);
-																																await taProxyCast.setSynthetixStateAddress();
-
-																																console.log(
-																																	'ta: synth state set'
 																																);
 
 																																await taProxyCast.approveKyber(
@@ -438,44 +422,35 @@ module.exports = async function(deployer, network, accounts) {
 						SUSD_ADDRESS,
 						xsnxAdminProxyCast.address,
 						OWNER
-          );
-          
-          await xsnxAdminProxyCast.setXsnxTokenAddress(
-            xsnxProxyCast.address
-          );
+					);
+
+					await xsnxAdminProxyCast.setXsnxTokenAddress(xsnxProxyCast.address);
 
 					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_1);
 					console.log('xsnx: set asset 1 => transfer proxy approve');
-					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_2);
+					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_2); 
 					console.log('xsnx: set asset 2 => transfer proxy approve');
 
-					await xsnxProxyCast.setFeeDivisors('500', '500', '100');
+					await xsnxProxyCast.setFeeDivisors('500', '500', '100'); 
 					console.log('xsnx: fee divisors set');
-
-					await xsnxAdminProxyCast.setSynthetixAddress();
-					console.log('xsnx: synthetix set');
 
 					await taProxyCast.setAdminInstanceAddress(xsnxAdminProxyCast.address);
 					console.log('ta: xsnx address set');
 
-					await taProxyCast.setSynthetixAddress();
-					console.log('ta: synthetix set');
-					await taProxyCast.setSynthetixStateAddress();
-					console.log('ta: synth state set');
 					await taProxyCast.setCurve(CURVE_POOL, USDC_CURVE_INDEX, SUSD_CURVE_INDEX);
 					console.log('ta: curve set');
 
 					await taProxyCast.approveKyber(SNX_ADDRESS);
 					console.log('ta: approve kyber: snx');
-					await taProxyCast.approveKyber(SET_ASSET_1);
+					await taProxyCast.approveKyber(SET_ASSET_1); 
 					console.log('ta: approve kyber: set asset 1');
 					await taProxyCast.approveKyber(SET_ASSET_2);
 					console.log('ta: approve kyber: set asset 2');
 					await taProxyCast.approveKyber(USDC_ADDRESS); // unnecessary for USDC-Sets
 					console.log('ta: approve kyber: usdc');
-					await taProxyCast.approveCurve(SUSD_ADDRESS);
+					await taProxyCast.approveCurve(SUSD_ADDRESS); 
 					console.log('ta: approve curve: susd');
-					await taProxyCast.approveCurve(USDC_ADDRESS);
+					await taProxyCast.approveCurve(USDC_ADDRESS);//
 					console.log('ta: approve curve: usdc');
 				});
 			});

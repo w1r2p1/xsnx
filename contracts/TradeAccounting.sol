@@ -87,7 +87,6 @@ contract TradeAccounting is Ownable {
     int128 susdIndex;
 
     ICurveFi private curveFi;
-    ISynthetix private synthetix;
     ISynthetixState private synthetixState;
     IAddressResolver private addressResolver;
     IKyberNetworkProxy private kyberNetworkProxy;
@@ -110,7 +109,6 @@ contract TradeAccounting is Ownable {
     address[2] setComponentAddresses;
 
     bytes32 constant rewardEscrowName = "RewardEscrow";
-    bytes32 constant synthetixStateName = "SynthetixState";
     bytes32 constant exchangeRatesName = "ExchangeRates";
     bytes32 constant synthetixName = "Synthetix";
     bytes32 constant systemSettingsName = "SystemSettings";
@@ -375,9 +373,9 @@ contract TradeAccounting is Ownable {
 
     function getInitialSupply() internal view returns (uint256) {
         return
-            IERC20(address(synthetix)).balanceOf(xSNXAdminInstance).mul(
-                INITIAL_SUPPLY_MULTIPLIER
-            );
+            IERC20(addressResolver.getAddress(synthetixName))
+                .balanceOf(xSNXAdminInstance)
+                .mul(INITIAL_SUPPLY_MULTIPLIER);
     }
 
     function calculateTokensToMintWithEth(
@@ -648,7 +646,10 @@ contract TradeAccounting is Ownable {
     }
 
     function getSnxBalanceOwned() internal view returns (uint256) {
-        return IERC20(address(synthetix)).balanceOf(xSNXAdminInstance);
+        return
+            IERC20(addressResolver.getAddress(synthetixName)).balanceOf(
+                xSNXAdminInstance
+            );
     }
 
     function getSnxBalanceEscrowed() internal view returns (uint256) {
@@ -695,7 +696,11 @@ contract TradeAccounting is Ownable {
     }
 
     function getContractDebtValue() internal view returns (uint256) {
-        return synthetix.debtBalanceOf(xSNXAdminInstance, susd);
+        return
+            ISynthetix(addressResolver.getAddress(synthetixName)).debtBalanceOf(
+                xSNXAdminInstance,
+                susd
+            );
     }
 
     // returns inverse of target C-RATIO
@@ -985,18 +990,6 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
     /*                                     Address Setters                                       */
     /* ========================================================================================= */
-
-    function setSynthetixStateAddress() public {
-        address synthetixStateAddress = addressResolver.getAddress(
-            synthetixStateName
-        );
-        synthetixState = ISynthetixState(synthetixStateAddress);
-    }
-
-    function setSynthetixAddress() public {
-        address synthetixAddress = addressResolver.getAddress(synthetixName);
-        synthetix = ISynthetix(synthetixAddress);
-    }
 
     function setAdminInstanceAddress(address _xSNXAdminInstance)
         public

@@ -47,17 +47,12 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async (accounts
 	describe('Address Setters', async () => {
 		// setters executed in deployment script
 		// but difficult to test private variable setters directly
-		it('should be able to set the Synthetix address on TradeAccounting', async () => {
-			await tradeAccounting.setSynthetixAddress();
-			assert(true);
-		});
-		it('should be able to set the Synthetix State address on TradeAccounting', async () => {
-			await tradeAccounting.setSynthetixStateAddress();
-			assert(true);
-		});
-
-		it('should be able to set the xSNX address on TradeAccounting', async () => {
+		it('should be able to set the xSNX Admin address on TradeAccounting', async () => {
 			await tradeAccounting.setAdminInstanceAddress(xsnxAdmin.address);
+			assert(true);
+		});
+		it('should be able to set the xSNX Token address on xSNX Admin', async () => {
+			await xsnxAdmin.setXsnxTokenAddress(xsnx.address);
 			assert(true);
 		});
 	});
@@ -258,4 +253,19 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async (accounts
 			await truffleAssert.reverts(xsnxAdmin.hedge(amountSusd, ['0', '0'], ['0', '0'], ethAllocation));
 		});
 	});
+
+	describe('Withdrawing native token after errant transfer', async () => {
+		it('should be able to retrieve xSNX tokens from xSNX contract', async() => {
+			await xsnx.mint(0, { value: web3.utils.toWei('0.01') });
+			const xsnxBal = await xsnx.balanceOf(deployer)
+			await xsnx.transfer(xsnx.address, xsnxBal)
+			const xsnxXsnxBal = await xsnx.balanceOf(xsnx.address)
+			assertBNEqual(xsnxXsnxBal, xsnxBal)
+			
+			await xsnx.withdrawNativeToken()
+			const xsnxXsnxBalAfter = await xsnx.balanceOf(xsnx.address)
+			assertBNEqual(xsnxXsnxBalAfter, bn(0))
+		})
+
+	})
 });

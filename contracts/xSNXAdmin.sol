@@ -124,7 +124,9 @@ contract xSNXAdmin is Ownable {
     }
 
     function _stake(uint256 mintAmount) private {
-        synthetix.issueSynths(mintAmount);
+        ISynthetix(addressResolver.getAddress(synthetixName)).issueSynths(
+            mintAmount
+        );
     }
 
     /*
@@ -173,7 +175,9 @@ contract xSNXAdmin is Ownable {
     }
 
     function _burnSynths(uint256 _amount) private {
-        synthetix.burnSynths(_amount);
+        ISynthetix(addressResolver.getAddress(synthetixName)).burnSynths(
+            _amount
+        );
     }
 
     function _swapTokenToEther(
@@ -222,7 +226,7 @@ contract xSNXAdmin is Ownable {
     function rebalanceTowardsSnx(uint256 minRate) external onlyOwnerOrManager {
         require(
             tradeAccounting.isRebalanceTowardsSnxRequired(),
-            "Rebalance unnnecessary"
+            "Rebalance unnecessary"
         );
         (uint256 setToSell, address activeAsset) = tradeAccounting
             .getRebalanceTowardsSnxUtils();
@@ -434,11 +438,6 @@ contract xSNXAdmin is Ownable {
         }
     }
 
-    function setSynthetixAddress() public {
-        address synthetixAddress = addressResolver.getAddress(synthetixName);
-        synthetix = ISynthetix(synthetixAddress);
-    }
-
     function setManagerAddress(address _manager) public onlyOwner {
         manager = _manager;
     }
@@ -459,6 +458,10 @@ contract xSNXAdmin is Ownable {
     }
 
     function() external payable {
-        require(msg.sender == address(tradeAccounting), "Incorrect sender");
+        require(
+            msg.sender == address(tradeAccounting) ||
+                msg.sender == xsnxTokenAddress,
+            "Incorrect sender"
+        );
     }
 }
