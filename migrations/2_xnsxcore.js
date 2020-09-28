@@ -183,7 +183,7 @@ module.exports = async function(deployer, network, accounts) {
 																																	xsnx.address,
 																																	admin,
 																																	cosigner1,
-																																	cosigner2
+																																	cosigner2,
 																																);
 																																let xsnxProxyCast = await xSNX.at(
 																																	xsnxProxy.address
@@ -194,16 +194,10 @@ module.exports = async function(deployer, network, accounts) {
 																																	synthetix.address,
 																																	susd.address,
 																																	xsnxAdminProxyCast.address,
-																																	admin
-																																);
-
-																																await xsnxProxyCast.setFeeDivisors(
+																																	admin,
 																																	'400',
 																																	'400',
 																																	'40'
-																																);
-																																console.log(
-																																	'xsnx: fee divisors set'
 																																);
 
 																																await xsnxAdminProxyCast.setXsnxTokenAddress(
@@ -421,7 +415,10 @@ module.exports = async function(deployer, network, accounts) {
 						SNX_ADDRESS,
 						SUSD_ADDRESS,
 						xsnxAdminProxyCast.address,
-						OWNER
+						OWNER,
+						'500',
+						'500',
+						'100'
 					);
 
 					await xsnxAdminProxyCast.setXsnxTokenAddress(xsnxProxyCast.address);
@@ -430,9 +427,6 @@ module.exports = async function(deployer, network, accounts) {
 					console.log('xsnx: set asset 1 => transfer proxy approve');
 					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_2); 
 					console.log('xsnx: set asset 2 => transfer proxy approve');
-
-					await xsnxProxyCast.setFeeDivisors('500', '500', '100'); 
-					console.log('xsnx: fee divisors set');
 
 					await taProxyCast.setAdminInstanceAddress(xsnxAdminProxyCast.address);
 					console.log('ta: xsnx address set');
