@@ -95,7 +95,6 @@ contract TradeAccounting is Ownable {
     address private addressValidator;
 
     address private setAddress;
-    address private snxAddress;
     address private susdAddress;
     address private usdcAddress;
 
@@ -115,7 +114,6 @@ contract TradeAccounting is Ownable {
     bytes32 constant systemSettingsName = "SystemSettings";
 
     function initialize(
-        address _snxAddress,
         address _setAddress,
         address _kyberProxyAddress,
         address _addressResolver,
@@ -128,7 +126,6 @@ contract TradeAccounting is Ownable {
     ) public initializer {
         Ownable.initialize(_ownerAddress);
 
-        snxAddress = _snxAddress;
         setAddress = _setAddress;
         kyberNetworkProxy = IKyberNetworkProxy(_kyberProxyAddress);
         addressResolver = IAddressResolver(_addressResolver);

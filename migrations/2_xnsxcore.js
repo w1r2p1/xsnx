@@ -130,7 +130,6 @@ module.exports = async function(deployer, network, accounts) {
 																											taProxy.address
 																										);
 																										await taProxyCast.initialize(
-																											synthetix.address,
 																											setToken.address,
 																											kyberProxy.address,
 																											addressResolver.address,
@@ -391,7 +390,6 @@ module.exports = async function(deployer, network, accounts) {
 
 					let taProxyCast = await TradeAccounting.at(taProxy.address);
 					await taProxyCast.initialize(
-						SNX_ADDRESS,
 						SET_ADDRESS,
 						KYBER_PROXY,
 						ADDRESS_RESOLVER,
