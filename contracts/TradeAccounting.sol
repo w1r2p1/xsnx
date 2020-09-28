@@ -696,10 +696,11 @@ contract TradeAccounting is Ownable {
     }
 
     function getContractDebtValue() internal view returns (uint256) {
-        return ISynthetix(addressResolver.getAddress(synthetixName)).debtBalanceOf(
-            xSNXAdminInstance,
-            susd
-        );
+        return
+            ISynthetix(addressResolver.getAddress(synthetixName)).debtBalanceOf(
+                xSNXAdminInstance,
+                susd
+            );
     }
 
     // returns inverse of target C-RATIO

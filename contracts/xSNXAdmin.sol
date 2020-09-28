@@ -458,6 +458,10 @@ contract xSNXAdmin is Ownable {
     }
 
     function() external payable {
-        require(msg.sender == address(tradeAccounting), "Incorrect sender");
+        require(
+            msg.sender == address(tradeAccounting) ||
+                msg.sender == xsnxTokenAddress,
+            "Incorrect sender"
+        );
     }
 }

@@ -224,12 +224,12 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
     }
 
     /*
-     * @notice Emergency function in case of errant transfer of 
+     * @notice Emergency function in case of errant transfer of
      * xSNX token directly to contract
      */
     function withdrawNativeToken() public onlyOwner {
-        uint tokenBal = balanceOf(address(this));
-        if(tokenBal > 0){
+        uint256 tokenBal = balanceOf(address(this));
+        if (tokenBal > 0) {
             transfer(msg.sender, tokenBal);
         }
     }
