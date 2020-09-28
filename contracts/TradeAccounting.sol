@@ -376,9 +376,9 @@ contract TradeAccounting is Ownable {
 
     function getInitialSupply() internal view returns (uint256) {
         return
-            IERC20(snxAddress).balanceOf(xSNXAdminInstance).mul(
-                INITIAL_SUPPLY_MULTIPLIER
-            );
+            IERC20(addressResolver.getAddress(synthetixName))
+                .balanceOf(xSNXAdminInstance)
+                .mul(INITIAL_SUPPLY_MULTIPLIER);
     }
 
     function calculateTokensToMintWithEth(
@@ -649,7 +649,10 @@ contract TradeAccounting is Ownable {
     }
 
     function getSnxBalanceOwned() internal view returns (uint256) {
-        return IERC20(snxAddress).balanceOf(xSNXAdminInstance);
+        return
+            IERC20(addressResolver.getAddress(synthetixName)).balanceOf(
+                xSNXAdminInstance
+            );
     }
 
     function getSnxBalanceEscrowed() internal view returns (uint256) {
