@@ -132,7 +132,7 @@ contract xSNXAdmin is Ownable {
      * @notice Claims weekly sUSD and SNX rewards
      * @notice Fixes c-ratio if necessary
      * @param susdToBurnToFixCollat: tradeAccounting.calculateSusdToBurnToFixRatioExternal()
-     * @param minKyberRates[]: kyber.getExpectedRate[setAsset => usdc, usdc => eth]
+     * @param minKyberRates: kyber.getExpectedRate[setAsset => usdc, usdc => eth]
      * @param minCurveReturns: curve.get_dy_underlying([(setAssetBalance, usdc=>susd), (susdBalance susd=>usdc)])
      * @param feesClaimable: feePool.isFeesClaimable(address(this)) - on Synthetix contract
      */
@@ -249,7 +249,7 @@ contract xSNXAdmin is Ownable {
      * @dev `Liabilities (debt) > assets (Set + ETH)` by more than rebalance threshold
      * @param: totalSusdToBurn: tradeAccounting.getRebalanceTowardsHedgeUtils()
      * @param: minKyberRates: kyber.getExpectedRate([activeSetAsset => usdc, snx => eth])
-     * @param minCurveReturns: curve.get_dy_underlying([(expectedUsdcBalance, usdc=>susd), (0)])
+     * @param: minCurveReturns: curve.get_dy_underlying([(expectedUsdcBalance, usdc=>susd), (0)])
      * @param: snxToSell: tradeAccounting.getRebalanceTowardsHedgeUtils()
      */
     function rebalanceTowardsHedge(
