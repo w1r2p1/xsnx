@@ -405,7 +405,7 @@ contract TradeAccounting is Ownable {
     }
 
     /*
-     * @dev Returns Synthetix synth symbol for asset currently held in TokenSet
+     * @dev Returns Synthetix synth symbol for asset currently held in TokenSet (e.g., sETH for WETH)
      * @notice xSNX contract complex only compatible with Sets that hold a single asset at a time
      */
     function getActiveAssetSynthSymbol()
@@ -926,8 +926,7 @@ contract TradeAccounting is Ownable {
     /* ========================================================================================= */
 
     /*
-     * @dev Helper function to calculate asset sales/burns for a rebalance towards the hedge portfolio
-     * @notice used for xSNXAdmin.rebalanceTowardsHedge()
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceTowardsHedge()
      */
     function calculateAssetChangesForRebalanceToHedge()
         internal
@@ -964,8 +963,7 @@ contract TradeAccounting is Ownable {
     }
 
     /*
-     * @dev Helper function to calculate asset sales for a rebalance towards SNX position
-     * @notice used for xSNXAdmin.rebalanceTowardsSnx()
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceTowardsSnx()
      */
     function calculateAssetChangesForRebalanceToSnx()
         public
@@ -1100,7 +1098,7 @@ contract TradeAccounting is Ownable {
     }
 
     /*
-     * @notice Helper for `hedge` function
+     * @dev Helper for `hedge` function
      * @dev Determines share of sUSD to allocate to ETH
      * @dev Implicitly determines Set allocation as well
      * @param susdBal: sUSD balance post minting
