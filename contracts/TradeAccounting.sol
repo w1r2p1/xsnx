@@ -145,9 +145,14 @@ contract TradeAccounting is Ownable {
     }
 
     /* ========================================================================================= */
-    /*                                         Kyber/Curve                                             */
+    /*                                         Kyber/Curve                                       */
     /* ========================================================================================= */
 
+    /*
+     * @dev Function that processes all token to token exchanges,
+     * sometimes via Kyber and sometimes via a combination of Kyber & Curve
+     * @dev Only callable by xSNXAdmin contract
+     */
     function swapTokenToToken(
         address fromToken,
         uint256 amount,
@@ -193,6 +198,11 @@ contract TradeAccounting is Ownable {
         );
     }
 
+    /*
+     * @dev Function that processes all token to ETH exchanges,
+     * sometimes via Kyber and sometimes via a combination of Kyber & Curve
+     * @dev Only callable by xSNXAdmin contract
+     */
     function swapTokenToEther(
         address fromToken,
         uint256 amount,
@@ -251,7 +261,12 @@ contract TradeAccounting is Ownable {
         return address(xSNXAdminInstance).balance;
     }
 
-    // eth terms
+    /*
+     * @dev Helper function for `xSNX.burn` that outputs NAV
+     * redemption value in ETH terms
+     * @param totalSupply: xSNX.totalSupply()
+     * @param tokensToRedeem: xSNX to burn
+     */
     function calculateRedemptionValue(
         uint256 totalSupply,
         uint256 tokensToRedeem
@@ -268,6 +283,12 @@ contract TradeAccounting is Ownable {
         valueToRedeem = pricePerToken.mul(tokensToRedeem).div(DEC_18);
     }
 
+    /*
+     * @dev Helper function for `xSNX.mint` that
+     * 1) determines whether ETH contribution should be maintained in ETH or exchanged for SNX and
+     * 2) outputs the `nonSnxAssetValue` value to be used in NAV calculation
+     * @param totalSupply: xSNX.totalSupply()
+     */
     function getMintWithEthUtils(uint256 totalSupply)
         public
         view
@@ -286,6 +307,14 @@ contract TradeAccounting is Ownable {
         nonSnxAssetValue = setHoldingsInWei.add(ethBalBefore);
     }
 
+    /*
+     * @notice xSNX system targets 25% of hedge portfolio to be maintained in ETH
+     * @dev Function produces binary yes allocate/no allocate decision point
+     * determining whether ETH sent on xSNX.mint() is held or exchanged
+     * @param setHoldingsInWei: value of Set portfolio in ETH terms
+     * @param ethBalBefore: value of ETH reserve prior to tx
+     * @param totalSupply: xSNX.totalSupply()
+     */
     function shouldAllocateEthToEthReserve(
         uint256 setHoldingsInWei,
         uint256 ethBalBefore,
@@ -301,7 +330,14 @@ contract TradeAccounting is Ownable {
         return false;
     }
 
-    // eth terms
+    /*
+     * @dev Helper function for calculateIssueTokenPrice
+     * @dev Called indirectly by `xSNX.mint` and `xSNX.mintWithSnx`
+     * @dev Calculates NAV of the fund, including value of escrowed SNX, in ETH terms
+     * @param weiPerOneSnx: SNX price in ETH terms
+     * @param snxBalanceBefore: SNX balance pre-mint
+     * @param nonSnxAssetValue: NAV of non-SNX slice of fund
+     */
     function calculateNetAssetValueOnMint(
         uint256 weiPerOneSnx,
         uint256 snxBalanceBefore,
@@ -320,7 +356,14 @@ contract TradeAccounting is Ownable {
             );
     }
 
-    // eth terms
+    /*
+     * @dev Helper function for calculateRedeemTokenPrice
+     * @dev Called indirectly by `xSNX.burn`
+     * @dev Calculates NAV of the fund, excluding value of escrowed SNX, in ETH terms
+     * @param weiPerOneSnx: SNX price in ETH terms
+     * @param snxBalanceOwned: non-escrowed SNX balance
+     * @param contractDebtValueInWei: sUSD debt balance of fund in ETH terms
+     */
     function calculateNetAssetValueOnRedeem(
         uint256 weiPerOneSnx,
         uint256 snxBalanceOwned,
@@ -336,11 +379,17 @@ contract TradeAccounting is Ownable {
             );
     }
 
-    // eth terms
+    /*
+     * @dev NAV value of non-SNX assets, computed in ETH terms
+     */
     function calculateNonSnxAssetValue() internal view returns (uint256) {
         return getSetHoldingsValueInWei().add(getEthBalance());
     }
 
+    /*
+     * @dev SNX price in ETH terms, calculated for purposes of redemption NAV
+     * @notice Return value discounted slightly to better represent liquidation price
+     */
     function getWeiPerOneSnxOnRedeem()
         internal
         view
@@ -355,6 +404,10 @@ contract TradeAccounting is Ownable {
             .div(PERCENT);
     }
 
+    /*
+     * @dev Returns Synthetix synth symbol for asset currently held in TokenSet
+     * @notice xSNX contract complex only compatible with Sets that hold a single asset at a time
+     */
     function getActiveAssetSynthSymbol()
         internal
         view
@@ -365,12 +418,18 @@ contract TradeAccounting is Ownable {
             : (synthSymbols[1]);
     }
 
+    /*
+     * @dev Returns SNX price in ETH terms, calculated for purposes of issuance NAV (when allocateToEth)
+     */
     function getWeiPerOneSnxOnMint() internal view returns (uint256) {
         uint256 snxUsd = getSynthPrice(snx);
         uint256 ethUsd = getSynthPrice(seth);
         return snxUsd.mul(DEC_18).div(ethUsd);
     }
 
+    /*
+     * @dev Single use function to define initial xSNX issuance
+     */
     function getInitialSupply() internal view returns (uint256) {
         return
             IERC20(addressResolver.getAddress(synthetixName))
@@ -378,6 +437,14 @@ contract TradeAccounting is Ownable {
                 .mul(INITIAL_SUPPLY_MULTIPLIER);
     }
 
+    /*
+     * @dev Helper function for `xSNX.mint` that calculates token issuance
+     * @param snxBalanceBefore: SNX balance pre-mint
+     * @param ethContributed: ETH payable on mint, less fees
+     * @param nonSnxAssetValue: NAV of non-SNX slice of fund
+     * @param totalSupply: xSNX.totalSupply()
+     * @param allocateToEth: bool determining whether ETH payable is reserved in ETH or exchanged
+     */
     function calculateTokensToMintWithEth(
         uint256 snxBalanceBefore,
         uint256 ethContributed,
@@ -408,6 +475,12 @@ contract TradeAccounting is Ownable {
         return ethContributed.mul(DEC_18).div(pricePerToken);
     }
 
+    /*
+     * @dev Helper function for `xSNX.mintWithSnx` that calculates token issuance
+     * @param snxBalanceBefore: SNX balance pre-mint
+     * @param snxAddedToBalance: SNX contributed by mint
+     * @param totalSupply: xSNX.totalSupply()
+     */
     function calculateTokensToMintWithSnx(
         uint256 snxBalanceBefore,
         uint256 snxAddedToBalance,
@@ -432,6 +505,14 @@ contract TradeAccounting is Ownable {
         return proxyEthContribution.mul(DEC_18).div(pricePerToken);
     }
 
+    /*
+     * @dev Called indirectly by `xSNX.mint` and `xSNX.mintWithSnx`
+     * @dev Calculates token price on issuance, including value of escrowed SNX
+     * @param weiPerOneSnx: SNX price in ETH terms
+     * @param snxBalanceBefore: SNX balance pre-mint
+     * @param nonSnxAssetValue: Non-SNX slice of fund
+     * @param totalSupply: xSNX.totalSupply()
+     */
     function calculateIssueTokenPrice(
         uint256 weiPerOneSnx,
         uint256 snxBalanceBefore,
@@ -447,6 +528,13 @@ contract TradeAccounting is Ownable {
             .div(totalSupply);
     }
 
+    /*
+     * @dev Called indirectly by `xSNX.burn`
+     * @dev Calculates token price on redemption, excluding value of escrowed SNX
+     * @param totalSupply: xSNX.totalSupply()
+     * @param snxBalanceOwned: non-escrowed SNX balance
+     * @param contractDebtValue: sUSD debt in USD terms
+     */
     function calculateRedeemTokenPrice(
         uint256 totalSupply,
         uint256 snxBalanceOwned,
@@ -470,11 +558,19 @@ contract TradeAccounting is Ownable {
     /*                                          Set                                              */
     /* ========================================================================================= */
 
+    /*
+     * @dev Balance of underlying asset "active" in Set (e.g., WETH or USDC)
+     */
     function getActiveSetAssetBalance() public view returns (uint256) {
         return
             IERC20(getAssetCurrentlyActiveInSet()).balanceOf(xSNXAdminInstance);
     }
 
+    /*
+     * @dev Calculates quantity of Set Token equivalent to quantity of underlying asset token
+     * @notice rebalancingSetQuantity return value is reduced slightly to ensure successful execution
+     * @param componentQuantity: balance of underlying Set asset, e.g., WETH
+     */
     function calculateSetQuantity(uint256 componentQuantity)
         public
         view
@@ -497,6 +593,9 @@ contract TradeAccounting is Ownable {
             .mul(rebalancingSetNaturalUnit);
     }
 
+    /*
+     * @dev Calculates mintable quantity of Set Token given asset holdings
+     */
     function calculateSetIssuanceQuantity()
         public
         view
@@ -506,6 +605,10 @@ contract TradeAccounting is Ownable {
         rebalancingSetIssuable = calculateSetQuantity(componentQuantity);
     }
 
+    /*
+     * @dev Calculates Set token to sell given sUSD burn requirements
+     * @param totalSusdToBurn: sUSD to burn to fix ratio or unlock staked SNX
+     */
     function calculateSetRedemptionQuantity(uint256 totalSusdToBurn)
         public
         view
@@ -535,6 +638,9 @@ contract TradeAccounting is Ownable {
         );
     }
 
+    /*
+     * @dev Calculates value of a single 1e18 Set unit in ETH terms
+     */
     function calculateEthValueOfOneSetUnit()
         internal
         view
@@ -563,6 +669,9 @@ contract TradeAccounting is Ownable {
         ethValue = componentRequired.mul(synthUsd).div(ethUsd);
     }
 
+    /*
+     * @dev Calculates value of Set Holdings in ETH terms
+     */
     function getSetHoldingsValueInWei()
         public
         view
@@ -584,6 +693,10 @@ contract TradeAccounting is Ownable {
         return getCurrentCollateralSet().naturalUnit();
     }
 
+    /*
+     * @dev Outputs current active Set asset
+     * @notice xSNX contracts complex only compatible with Sets that hold a single asset at a time
+     */
     function getAssetCurrentlyActiveInSet() public view returns (address) {
         address[] memory currentAllocation = getCurrentCollateralSet()
             .getComponents();
@@ -602,8 +715,10 @@ contract TradeAccounting is Ownable {
         return ISetToken(setAddress).currentSet();
     }
 
-    // this returns the number of underlying tokens in the current Set asset
-    // e.g., the contract's Set holdings are collateralized by 10.4 WETH
+    /*
+     * @dev Returns the number of underlying tokens in the current Set asset
+     * e.g., the contract's Set holdings are collateralized by 10.4 WETH
+     */
     function getSetCollateralTokens() internal view returns (uint256) {
         return
             getSetBalanceCollateral().mul(getBaseSetComponentUnits()).div(
@@ -686,6 +801,10 @@ contract TradeAccounting is Ownable {
         return rate;
     }
 
+    /*
+     * @dev Converts sUSD debt value into ETH terms
+     * @param debtValue: sUSD-denominated debt value
+     */
     function calculateDebtValueInWei(uint256 debtValue)
         internal
         view
@@ -703,14 +822,18 @@ contract TradeAccounting is Ownable {
             );
     }
 
-    // returns inverse of target C-RATIO
+    /*
+     * @notice Returns inverse of target C-RATIO
+     */
     function getIssuanceRatio() internal view returns (uint256) {
         return
             ISystemSettings(addressResolver.getAddress(systemSettingsName))
                 .issuanceRatio();
     }
 
-    // usd terms
+    /*
+     * @notice Returns NAV contribution of SNX holdings in USD terms
+     */
     function getContractSnxValue() internal view returns (uint256) {
         return getSnxBalance().mul(getSnxPrice()).div(DEC_18);
     }
@@ -719,6 +842,12 @@ contract TradeAccounting is Ownable {
     /*                                       Burning sUSD                                        */
     /* ========================================================================================= */
 
+    /*
+     * @dev Calculates sUSD to burn to restore C-RATIO
+     * @param snxValueHeld: USD value of SNX
+     * @param contractDebtValue: USD value of sUSD debt
+     * @param issuanceRatio: Synthetix C-RATIO requirement
+     */
     function calculateSusdToBurnToFixRatio(
         uint256 snxValueHeld,
         uint256 contractDebtValue,
@@ -730,6 +859,9 @@ contract TradeAccounting is Ownable {
         return contractDebtValue.sub(subtractor);
     }
 
+    /*
+     * @dev Calculates sUSD to burn to restore C-RATIO
+     */
     function calculateSusdToBurnToFixRatioExternal()
         public
         view
@@ -746,6 +878,11 @@ contract TradeAccounting is Ownable {
             );
     }
 
+    /*
+     * @dev Calculates sUSD to burn to eclipse value of escrowed SNX
+     * @notice Synthetix system requires escrowed SNX to be "unlocked" first
+     * @param issuanceRatio: Synthetix C-RATIO requirement
+     */
     function calculateSusdToBurnToEclipseEscrowed(uint256 issuanceRatio)
         public
         view
@@ -757,6 +894,13 @@ contract TradeAccounting is Ownable {
         return escrowedSnxValue.mul(issuanceRatio).div(DEC_18);
     }
 
+    /*
+     * @dev Helper function to calculate sUSD burn required for a potential redemption
+     * @param tokensToRedeem: potential tokens to burn
+     * @param totalSupply: xSNX.totalSupply()
+     * @param contractDebtValue: sUSD debt value
+     * @param issuanceRatio: Synthetix C-RATIO requirement
+     */
     function calculateSusdToBurnForRedemption(
         uint256 tokensToRedeem,
         uint256 totalSupply,
@@ -781,7 +925,10 @@ contract TradeAccounting is Ownable {
     /*                                        Rebalances                                         */
     /* ========================================================================================= */
 
-    // usd terms
+    /*
+     * @dev Helper function to calculate asset sales/burns for a rebalance towards the hedge portfolio
+     * @notice used for xSNXAdmin.rebalanceTowardsHedge()
+     */
     function calculateAssetChangesForRebalanceToHedge()
         internal
         view
@@ -816,6 +963,10 @@ contract TradeAccounting is Ownable {
         snxToSell = valueToUnlockInUsd.mul(DEC_18).div(getSnxPrice());
     }
 
+    /*
+     * @dev Helper function to calculate asset sales for a rebalance towards SNX position
+     * @notice used for xSNXAdmin.rebalanceTowardsSnx()
+     */
     function calculateAssetChangesForRebalanceToSnx()
         public
         view
@@ -834,6 +985,9 @@ contract TradeAccounting is Ownable {
         setToSell = setToSell.div(naturalUnit).mul(naturalUnit);
     }
 
+    /*
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceTowardsSnx()
+     */
     function getRebalanceTowardsSnxUtils()
         public
         view
@@ -843,7 +997,10 @@ contract TradeAccounting is Ownable {
         activeAsset = getAssetCurrentlyActiveInSet();
     }
 
-    // eth terms
+    /*
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceTowardsSnx(), xSNXAdmin.rebalanceTowardsHedge()
+     * @dev Denominated in ETH terms
+     */
     function getRebalanceUtils()
         public
         view
@@ -857,7 +1014,10 @@ contract TradeAccounting is Ownable {
         hedgeAssetsBalance = setHoldingsInWei.add(ethBalance);
     }
 
-    // usd terms
+    /*
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceTowardsHedge()
+     * @dev Denominated in USD terms
+     */
     function calculateHedgeAssetsValueInUsd()
         internal
         view
@@ -880,6 +1040,9 @@ contract TradeAccounting is Ownable {
         hedgeAssetsValueInUsd = setValueUsd.add(ethValueUsd);
     }
 
+    /*
+     * @dev Helper function to determine whether xSNXAdmin.rebalanceTowardsSnx() is required
+     */
     function isRebalanceTowardsSnxRequired() public view returns (bool) {
         (
             uint256 debtValueInWei,
@@ -896,6 +1059,9 @@ contract TradeAccounting is Ownable {
         return false;
     }
 
+    /*
+     * @dev Helper function to determine whether xSNXAdmin.rebalanceTowardsHedge() is required
+     */
     function isRebalanceTowardsHedgeRequired() public view returns (bool) {
         (
             uint256 debtValueInWei,
@@ -912,7 +1078,10 @@ contract TradeAccounting is Ownable {
         return false;
     }
 
-    // will fail if !isRebalanceTowardsHedgeRequired()
+    /*
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceTowardsHedge()
+     * @notice Will fail if !isRebalanceTowardsHedgeRequired()
+     */
     function getRebalanceTowardsHedgeUtils()
         public
         view
@@ -963,7 +1132,9 @@ contract TradeAccounting is Ownable {
         }
     }
 
-    // helper callable when eth bal is below eth target
+    /*
+     * @dev Helper function to facilitate xSNXAdmin.rebalanceSetToEth()
+     */
     function calculateSetToSellForRebalanceSetToEth()
         public
         view
@@ -977,7 +1148,6 @@ contract TradeAccounting is Ownable {
             "Rebalance not necessary"
         );
 
-        // overcompensates slightly leading to more eth than target
         uint256 ethToAdd = ((hedgeAssets.div(ETH_TARGET)).sub(ethBal));
         setQuantityToSell = getContractSetBalance().mul(ethToAdd).div(
             setHoldingsInWei
@@ -1008,6 +1178,7 @@ contract TradeAccounting is Ownable {
         if (address(curveFi) == address(0)) {
             // if initial set on deployment, immediately activate Curve address
             curveFi = ICurveFi(curvePoolAddress);
+            nextCurveAddress = curvePoolAddress;
         } else {
             // if updating Curve address (i.e., not initial setting of address on deployment),
             // store nextCurveAddress but don't activate until addressValidator has confirmed

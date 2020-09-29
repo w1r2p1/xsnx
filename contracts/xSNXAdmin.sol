@@ -69,8 +69,7 @@ contract xSNXAdmin is Ownable {
     }
 
     /*
-     * @notice Function to transfer ETH to token contract on burn
-     * @dev Issues synths on Synthetix
+     * @dev Function to transfer ETH to token contract on burn
      * @param valueToSend: token burn redemption value
      */
     function sendEthOnRedemption(uint256 valueToSend) public onlyTokenContract {
@@ -86,7 +85,7 @@ contract xSNXAdmin is Ownable {
      * @notice Hedge strategy management function callable by admin
      * @dev Issues synths on Synthetix
      * @dev Exchanges sUSD for Set and ETH in terms defined by tradeAccounting.ETH_TARGET
-     * @param mintAmount: susd to mint
+     * @param mintAmount: sUSD to mint
      * @param minKyberRates: kyber.getExpectedRate([usdc=>eth, usdc=>currentSetAsset])
      * @param minCurveReturns: curve.get_dy_underlying([(ethAllocation, susd=>usdc), ((mintAmount.sub(ethAllocation)), susd>usdc)])
      * @param ethAllocation: tradeAccounting.getEthAllocationOnHedge(mintAmount)
@@ -365,7 +364,7 @@ contract xSNXAdmin is Ownable {
     }
 
     /*
-     * @notice Unlock escrowed SNX rewards
+     * @dev Unlock escrowed SNX rewards
      * @notice Won't be called until at least a year after deployment
      */
     function vest() public {

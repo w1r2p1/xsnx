@@ -28,7 +28,10 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
         address _snxAddress,
         address _susdAddress,
         address _xsnxAdmin,
-        address _ownerAddress
+        address _ownerAddress,
+        uint256 _mintFeeDivisor,
+        uint256 _burnFeeDivisor,
+        uint256 _claimFeeDivisor
     ) public initializer {
         Ownable.initialize(_ownerAddress);
         ERC20Detailed.initialize("xSNX", "xSNXa", 18);
@@ -39,6 +42,8 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
         snxAddress = _snxAddress;
         susdAddress = _susdAddress;
         xsnxAdmin = _xsnxAdmin;
+
+        _setFeeDivisors(_mintFeeDivisor, _burnFeeDivisor, _claimFeeDivisor);
     }
 
     event Mint(
@@ -72,7 +77,8 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
      * @notice Mint new xSNX tokens from the contract by sending ETH
      * @dev Exchanges ETH for SNX
      * @dev Min rate ETH/SNX sourced from Kyber in JS
-     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX price (via SNX oracle)
+     * @dev: Calculates overall fund NAV in ETH terms, using ETH/SNX implicit conversion rate
+     * or ETH/SNX price (via SNX oracle) in case of allocateToEth
      * @dev: Mints/distributes new xSNX tokens based on contribution to NAV
      * @param: minRate: kyberProxy.getExpectedRate eth=>snx
      */
@@ -91,7 +97,10 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
             uint256 snxAcquired = kyberNetworkProxy.swapEtherToToken.value(
                 ethContribution
             )(ERC20(snxAddress), minRate);
-            IERC20(snxAddress).transfer(xsnxAdmin, snxAcquired);
+            require(
+                IERC20(snxAddress).transfer(xsnxAdmin, snxAcquired),
+                "Transfer failed"
+            );
         } else {
             (bool success, ) = xsnxAdmin.call.value(ethContribution)("");
             require(success, "Transfer failed");
@@ -123,8 +132,14 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256 fee = calculateFee(snxAmount, feeDivisors.mintFee);
         uint256 snxContribution = snxAmount.sub(fee);
 
-        IERC20(snxAddress).transferFrom(msg.sender, address(this), fee);
-        IERC20(snxAddress).transferFrom(msg.sender, xsnxAdmin, snxContribution);
+        require(
+            IERC20(snxAddress).transferFrom(msg.sender, address(this), fee),
+            "Transfer failed"
+        );
+        require(
+            IERC20(snxAddress).transferFrom(msg.sender, xsnxAdmin, fee),
+            "Transfer failed"
+        );
 
         uint256 mintAmount = tradeAccounting.calculateTokensToMintWithSnx(
             snxBalanceBefore,
@@ -185,7 +200,6 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
     /*
      * @notice Inverse of fee i.e., a fee divisor of 100 == 1%
      * @notice Three fee types
-     * @notice Mint fee never charged on mintWithSnx
      * @dev Mint fee 0 or <= 2%
      * @dev Burn fee 0 or <= 1%
      * @dev Claim fee 0 <= 4%
@@ -195,14 +209,25 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
         uint256 burnFeeDivisor,
         uint256 claimFeeDivisor
     ) public onlyOwner {
-        require(mintFeeDivisor == 0 || mintFeeDivisor >= 50, "Invalid fee");
-        require(burnFeeDivisor == 0 || burnFeeDivisor >= 100, "Invalid fee");
-        require(claimFeeDivisor >= 25, "Invalid fee");
-        feeDivisors.mintFee = mintFeeDivisor;
-        feeDivisors.burnFee = burnFeeDivisor;
-        feeDivisors.claimFee = claimFeeDivisor;
+        _setFeeDivisors(mintFeeDivisor, burnFeeDivisor, claimFeeDivisor);
     }
 
+    function _setFeeDivisors(
+        uint256 _mintFeeDivisor,
+        uint256 _burnFeeDivisor,
+        uint256 _claimFeeDivisor
+    ) private {
+        require(_mintFeeDivisor == 0 || _mintFeeDivisor >= 50, "Invalid fee");
+        require(_burnFeeDivisor == 0 || _burnFeeDivisor >= 100, "Invalid fee");
+        require(_claimFeeDivisor >= 25, "Invalid fee");
+        feeDivisors.mintFee = _mintFeeDivisor;
+        feeDivisors.burnFee = _burnFeeDivisor;
+        feeDivisors.claimFee = _claimFeeDivisor;
+    }
+
+    /*
+     * @notice Withdraws ETH, sUSD and SNX fees to owner address
+     */
     function withdrawFees() public onlyOwner {
         uint256 ethFeesToWithdraw = address(this).balance;
         uint256 susdFeesToWithdraw = IERC20(susdAddress).balanceOf(
@@ -234,6 +259,10 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
         }
     }
 
+    /*
+     * @dev Helper function for xSNXAdmin to calculate and
+     * transfer claim fees
+     */
     function getClaimFeeDivisor() public view returns (uint256) {
         return feeDivisors.claimFee;
     }
