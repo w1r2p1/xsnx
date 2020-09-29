@@ -425,7 +425,7 @@ module.exports = async function(deployer, network, accounts) {
 
 					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_1);
 					console.log('xsnx: set asset 1 => transfer proxy approve');
-					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_2); 
+					await xsnxAdminProxyCast.approveSetTransferProxy(SET_ASSET_2);
 					console.log('xsnx: set asset 2 => transfer proxy approve');
 
 					await taProxyCast.setAdminInstanceAddress(xsnxAdminProxyCast.address);
@@ -436,15 +436,15 @@ module.exports = async function(deployer, network, accounts) {
 
 					await taProxyCast.approveKyber(SNX_ADDRESS);
 					console.log('ta: approve kyber: snx');
-					await taProxyCast.approveKyber(SET_ASSET_1); 
+					await taProxyCast.approveKyber(SET_ASSET_1);
 					console.log('ta: approve kyber: set asset 1');
 					await taProxyCast.approveKyber(SET_ASSET_2);
 					console.log('ta: approve kyber: set asset 2');
 					await taProxyCast.approveKyber(USDC_ADDRESS); // unnecessary for USDC-Sets
 					console.log('ta: approve kyber: usdc');
-					await taProxyCast.approveCurve(SUSD_ADDRESS); 
+					await taProxyCast.approveCurve(SUSD_ADDRESS);
 					console.log('ta: approve curve: susd');
-					await taProxyCast.approveCurve(USDC_ADDRESS);//
+					await taProxyCast.approveCurve(USDC_ADDRESS);
 					console.log('ta: approve curve: usdc');
 				});
 			});
