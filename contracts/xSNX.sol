@@ -137,7 +137,11 @@ contract xSNX is ERC20, ERC20Detailed, Pausable, Ownable {
             "Transfer failed"
         );
         require(
-            IERC20(snxAddress).transferFrom(msg.sender, xsnxAdmin, snxContribution),
+            IERC20(snxAddress).transferFrom(
+                msg.sender,
+                xsnxAdmin,
+                snxContribution
+            ),
             "Transfer failed"
         );
 
