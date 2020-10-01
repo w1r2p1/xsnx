@@ -79,6 +79,7 @@ contract TradeAccounting is Ownable {
     uint256 private constant ETH_TARGET = 4; // targets 1/4th of hedge portfolio
     uint256 private constant SLIPPAGE_RATE = 99;
     uint256 private constant MAX_UINT = 2**256 - 1;
+    uint256 private constant RATE_STALE_TIME = 28800; // 8 hours
     uint256 private constant REBALANCE_THRESHOLD = 105; // 5%
     uint256 private constant INITIAL_SUPPLY_MULTIPLIER = 10;
 
@@ -780,14 +781,24 @@ contract TradeAccounting is Ownable {
         return getSnxBalanceOwned().mul(getSnxPrice()).div(DEC_18);
     }
 
-    function getSnxPrice() internal view returns (uint256 rate) {
-        (rate, ) = IExchangeRates(addressResolver.getAddress(exchangeRatesName))
+    function getSnxPrice() internal view returns (uint256) {
+        (uint256 rate, uint256 time) = IExchangeRates(
+            addressResolver.getAddress(exchangeRatesName)
+        )
             .rateAndUpdatedTime(snx);
+        require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        return rate;
     }
 
-    function getSynthPrice(bytes32 synth) internal view returns (uint256 rate) {
-        (rate, ) = IExchangeRates(addressResolver.getAddress(exchangeRatesName))
+    function getSynthPrice(bytes32 synth) internal view returns (uint256) {
+        (uint256 rate, uint256 time) = IExchangeRates(
+            addressResolver.getAddress(exchangeRatesName)
+        )
             .rateAndUpdatedTime(synth);
+        if (synth != susd) {
+            require(time.add(RATE_STALE_TIME) > block.timestamp, "Rate stale");
+        }
+        return rate;
     }
 
     /*
