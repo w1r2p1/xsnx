@@ -7,7 +7,7 @@ import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20Deta
 import "@openzeppelin/upgrades/contracts/Initializable.sol";
 
 import "synthetix/contracts/interfaces/ISynthetix.sol";
-import "synthetix/contracts/interfaces/IRewardEscrow.sol";
+import "synthetix/contracts/interfaces/IRewardEscrowV2.sol";
 import "synthetix/contracts/interfaces/IExchangeRates.sol";
 import "synthetix/contracts/interfaces/ISynthetixState.sol";
 import "synthetix/contracts/interfaces/IAddressResolver.sol";
@@ -112,6 +112,7 @@ contract TradeAccounting is Ownable {
     bytes32 constant exchangeRatesName = "ExchangeRates";
     bytes32 constant synthetixName = "Synthetix";
     bytes32 constant systemSettingsName = "SystemSettings";
+    bytes32 constant rewardEscrowV2Name = "RewardEscrowV2";
 
     function initialize(
         address _setAddress,
@@ -769,7 +770,7 @@ contract TradeAccounting is Ownable {
 
     function getSnxBalanceEscrowed() internal view returns (uint256) {
         return
-            IRewardEscrow(addressResolver.getAddress(rewardEscrowName))
+            IRewardEscrowV2(addressResolver.getAddress(rewardEscrowV2Name))
                 .balanceOf(xSNXAdminInstance);
     }
 

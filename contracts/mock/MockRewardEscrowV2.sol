@@ -2,7 +2,7 @@ pragma solidity 0.5.15;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MockRewardEscrow {
+contract MockRewardEscrowV2 {
     address snxAddress;
     uint balance = 0; 
 
@@ -18,7 +18,7 @@ contract MockRewardEscrow {
         snxAddress = _snxAddress;
     }
 
-    function vest() public {
+    function vest(uint256[] memory entryIds) public {
         IERC20(snxAddress).transfer(msg.sender, 1e18);
     }
 }

@@ -12,7 +12,7 @@ const MockUSDC = artifacts.require('MockUSDC');
 const MockSynthetix = artifacts.require('MockSynthetix');
 const MockSetToken = artifacts.require('MockSetToken');
 const MockKyberProxy = artifacts.require('MockKyberProxy');
-const MockRewardEscrow = artifacts.require('MockRewardEscrow');
+const MockRewardEscrowV2 = artifacts.require('MockRewardEscrowV2');
 const MockFeePool = artifacts.require('MockFeePool');
 const MockCurveFi = artifacts.require('MockCurveFi');
 const MockRebalancingModule = artifacts.require('MockRebalancingModule');
@@ -37,9 +37,8 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async (accounts
 		weth = await MockWETH.deployed();
 		usdc = await MockUSDC.deployed();
 		kyberProxy = await MockKyberProxy.deployed();
-		rewardEscrow = await MockRewardEscrow.deployed();
+		rewardEscrowV2 = await MockRewardEscrowV2.deployed();
 		setToken = await MockSetToken.deployed();
-		rewardEscrow = await MockRewardEscrow.deployed();
 		feePool = await MockFeePool.deployed();
 		curve = await MockCurveFi.deployed();
 	});
@@ -100,10 +99,10 @@ contract('xSNXCore, TradeAccounting: Address Setters and Utils', async (accounts
 	describe('Vesting', async () => {
 		it('should result in greater SNX balance in the contract if executed successfully', async () => {
 			const snxBalanceBefore = await tradeAccounting.getSnxBalance();
-			await synthetix.transfer(rewardEscrow.address, web3.utils.toWei('2'));
-			await rewardEscrow.setSnxAddress(synthetix.address);
-			await rewardEscrow.setBalance(web3.utils.toWei('1'));
-			await xsnxAdmin.vest();
+			await synthetix.transfer(rewardEscrowV2.address, web3.utils.toWei('2'));
+			await rewardEscrowV2.setSnxAddress(synthetix.address);
+			await rewardEscrowV2.setBalance(web3.utils.toWei('1'));
+			await xsnxAdmin.vest(['1', '2']);
 			const snxBalanceAfter = await tradeAccounting.getSnxBalance();
 
 			assertBNEqual(bn(snxBalanceAfter).gt(bn(snxBalanceBefore)), true);
