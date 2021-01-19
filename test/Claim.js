@@ -16,7 +16,7 @@ const MockWETH = artifacts.require('MockWETH')
 const MockSetToken = artifacts.require('MockSetToken')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockCurveFi = artifacts.require('MockCurveFi')
-const MockRewardEscrow = artifacts.require('MockRewardEscrow')
+const MockRewardEscrowV2 = artifacts.require('MockRewardEscrowV2')
 const xSNXProxy = artifacts.require('xSNXProxy')
 const xSNXAdminProxy = artifacts.require('xSNXAdminProxy')
 const TradeAccountingProxy = artifacts.require('TradeAccountingProxy')
@@ -44,7 +44,7 @@ contract('xSNXCore: Claim', async (accounts) => {
     rebalancingModule = await MockRebalancingModule.deployed()
     synthetixState = await MockSynthetixState.deployed()
     curve = await MockCurveFi.deployed()
-    rewardEscrow = await MockRewardEscrow.deployed()
+    rewardEscrowV2 = await MockRewardEscrowV2.deployed()
 
     await susd.transfer(feePool.address, web3.utils.toWei('5'))
     await weth.transfer(rebalancingModule.address, web3.utils.toWei('5'))
@@ -130,7 +130,7 @@ contract('xSNXCore: Claim', async (accounts) => {
 
     it('should fix c-ratio before claiming if collateralization is below (w/ escrowed bal)', async () => {
       const ethBalBefore = await tradeAccounting.getEthBalance()
-      await rewardEscrow.setBalance(web3.utils.toWei('1'))
+      await rewardEscrowV2.setBalance(web3.utils.toWei('1'))
       await synthetix.addDebt(xsnxAdmin.address, web3.utils.toWei('0.2'))
       const debtBefore = await tradeAccounting.extGetContractDebtValue()
 

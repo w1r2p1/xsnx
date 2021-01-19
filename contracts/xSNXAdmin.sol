@@ -44,6 +44,8 @@ contract xSNXAdmin is Ownable {
     event RebalanceToSnx(uint256 timestamp, uint256 setSold);
     event RebalanceToHedge(uint256 timestamp, uint256 snxSold);
 
+    bytes32 constant rewardEscrowV2Name = "RewardEscrowV2";
+
     function initialize(
         address payable _tradeAccountingAddress,
         address _setAddress,
@@ -365,13 +367,13 @@ contract xSNXAdmin is Ownable {
 
     /*
      * @dev Unlock escrowed SNX rewards
-     * @notice Won't be called until at least a year after deployment
+     * @param entryIDs: vesting entries
      */
-    function vest() public {
-        IRewardEscrow rewardEscrow = IRewardEscrow(
-            addressResolver.getAddress(rewardEscrowName)
+    function vest(uint256[] memory entryIDs) public {
+        IRewardEscrowV2 rewardEscrow = IRewardEscrowV2(
+            addressResolver.getAddress(rewardEscrowV2Name)
         );
-        rewardEscrow.vest();
+        rewardEscrow.vest(entryIDs);
     }
 
     /* ========================================================================================= */

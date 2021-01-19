@@ -5,7 +5,7 @@ const TradeAccounting = artifacts.require('ExtTA')
 const MockSynthetix = artifacts.require('MockSynthetix')
 const MockRebalancingModule = artifacts.require('MockRebalancingModule')
 const MockSetToken = artifacts.require('MockSetToken')
-const MockRewardEscrow = artifacts.require('MockRewardEscrow')
+const MockRewardEscrowV2 = artifacts.require('MockRewardEscrowV2')
 const MockSUSD = artifacts.require('MockSUSD')
 const MockUSDC = artifacts.require('MockUSDC')
 const MockWETH = artifacts.require('MockWETH')
@@ -29,7 +29,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
     synthetix = await MockSynthetix.deployed()
     rebalancingModule = await MockRebalancingModule.deployed()
     setToken = await MockSetToken.deployed()
-    rewardEscrow = await MockRewardEscrow.deployed()
+    rewardEscrowV2 = await MockRewardEscrowV2.deployed()
     susd = await MockSUSD.deployed()
     weth = await MockWETH.deployed()
     usdc = await MockUSDC.deployed()
@@ -47,7 +47,7 @@ contract('xSNXCore: Burning sUSD calculations', async (accounts) => {
     })
 
     it('should calculate sUSD to burn to fix ratio with escrowed balance', async () => {
-      await rewardEscrow.setBalance(web3.utils.toWei('1'))
+      await rewardEscrowV2.setBalance(web3.utils.toWei('1'))
       const debtToBurn = web3.utils.toWei('0.05') // 800% c-ratio
       const susdToFixRatio = await calculateSusdToFixRatio()
 
